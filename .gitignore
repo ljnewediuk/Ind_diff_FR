@@ -1,0 +1,11 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+
+.DS_Store
+
+results/
+figures/
+input/rasters/
+input/RSF_data/
