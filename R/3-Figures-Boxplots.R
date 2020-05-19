@@ -67,6 +67,7 @@ bestmodelscores <- data.table()
 worstmodelscores <- data.table()
 for (i in unique(meanByID$elkyear)){
   indiv_sub <- meanByID[elkyear==i]
+  indiv_sub <- indiv_sub[1:3,]
   best_mod <- indiv_sub[mean==max(indiv_sub$mean)]
   worst_mod <- indiv_sub[mean==min(indiv_sub$mean)]
   best <- data.table(elkyear=unlist(best_mod$elkyear), best=unlist(best_mod$model), best_score=unlist(best_mod$mean), lower=unlist(best_mod$lower), upper=unlist(best_mod$upper))
@@ -75,6 +76,11 @@ for (i in unique(meanByID$elkyear)){
   worstmodelscores <- rbind(worstmodelscores, worst)
 }
 
+# Make data.table for supplementary material
+supp_correlations <- merge(bestmodelscores[,1:3], worstmodelscores[,1:3], by='elkyear')
+supp_correlations <- supp_correlations[order(elkyear)]
+
+# Make data.table for boxplot
 melt_correlations <- melt(all_correlations, measure.vars=c('individual', 'no_FR', 'ranef', 'gfr'))
 
 # tiff('figures/fig2.tiff', width = 7, height = 6, units = 'in', res = 300)
@@ -97,5 +103,6 @@ ggplot(melt_correlations, aes(x=variable, y=value, col=variable)) +
   geom_point(data=bestmodelscores, aes(x=best, y=best_score), col='black', fill='black', position=position_jitter(width=.1), pch=24, alpha=0.5)
  
 
-
+# Save table of scores for supplementary material
+write.csv(supp_correlations, 'tables/supplementary_model_scores.csv')
 
