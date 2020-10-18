@@ -13,7 +13,7 @@ libs <- c('data.table', 'ggplot2', 'cowplot', 'dplyr', 'DescTools')
 lapply(libs, require, character.only = TRUE)
 
 ### Load elkyears with fewer than 750 points ----
-Npoints_750<- readRDS('input/exclusion_elk.rds')
+# Npoints_750<- readRDS('input/exclusion_elk.rds')
 
 ### Load data from RSF outputs folder ----
 
@@ -57,7 +57,7 @@ for (i in unique(all_correlations$elkyear)){
     assign(paste(model, 'upper', sep='_'), signif(as.numeric(MeanCI(sub_model, conf.level=0.95)[3]),3))
   }
   
-  summaries <- data.table(elkyear=rep(unlist(i),3), model=c('no_FR', 'ranef', 'gfr'), mean=c(no_FR_mean, ranef_mean, gfr_mean),
+  summaries <- data.table(elkyear=rep(unlist(i),3), model=c('no_FR', 'ranef', 'gfr'), mean=c(no_FR_mean, ranef_mean, gfr_mean), 
                           lower=c(no_FR_lower, ranef_lower, gfr_lower), upper=c(no_FR_upper, ranef_upper, gfr_upper))
   meanByID <- rbind(meanByID, summaries)
 }
@@ -83,13 +83,13 @@ supp_correlations <- supp_correlations[order(elkyear)]
 # Make data.table for boxplot
 melt_correlations <- melt(all_correlations, measure.vars=c('individual', 'no_FR', 'ranef', 'gfr'))
 
-# tiff('figures/fig2.tiff', width = 7, height = 6, units = 'in', res = 300)
+tiff('figures/fig2.tiff', width = 7, height = 6, units = 'in', res = 300)
 
-ggplot(melt_correlations, aes(x=variable, y=value, col=variable)) + 
+ggplot(melt_correlations[variable=='individual' | variable=='ranef' | variable=='gfr'], aes(x=variable, y=value, col=variable)) + 
   # Add zero line at median of individual level model
-  geom_hline(yintercept=median(melt_correlations[variable=='individual']$value), col='#000000', size=0.5, linetype='solid', alpha=0.5) +
+  geom_hline(yintercept=median(melt_correlations[variable=='individual']$value), col='#000000', linetype='dashed') +
   # Add boxplots
-  geom_boxplot(notch=TRUE, aes(fill=variable), width=0.5, colour='black', alpha=0.5) + 
+  geom_boxplot(notch=TRUE, aes(fill=variable), width=0.4, colour='black', alpha=0.5) + 
   # Set boxpot colours
   scale_fill_manual(values=c("#65ABF3", "#DED9DC", "#DED9DC", "#DED9DC")) + 
   scale_x_discrete(labels=c('individual' = 'Individual', 'no_FR' = 'Base',
@@ -97,12 +97,16 @@ ggplot(melt_correlations, aes(x=variable, y=value, col=variable)) +
   # Theme
   theme(panel.background = element_rect(fill='white'), panel.border = element_rect(colour='black', fill=NA), 
         legend.position='none', axis.text = element_text(size=12, colour='black'), axis.title.y = element_text(size=15, colour='black', vjust=2.5)) +
-  ylab(expression(paste('Correlation with individual level model (R'^2, ')'))) + xlab('') +
+  ylab(expression(paste('Correlation with individual level model (R'^2, ')'))) + xlab('')
   # Optionally add points to show worst/best models
-  geom_point(data=worstmodelscores, aes(x=worst, y=worst_score), col='black', fill='white', position=position_jitter(width=.1), pch=21, alpha=0.5) +
-  geom_point(data=bestmodelscores, aes(x=best, y=best_score), col='black', fill='black', position=position_jitter(width=.1), pch=24, alpha=0.5)
+  # + geom_point(data=worstmodelscores, aes(x=worst, y=worst_score), col='black', fill='white', position=position_jitter(width=.1), pch=21, alpha=0.5) +
+  # geom_point(data=bestmodelscores, aes(x=best, y=best_score), col='black', fill='black', position=position_jitter(width=.1), pch=24, alpha=0.5)
  
+# Save mean correlations by elk year
+saveRDS(meanByID, 'input/mean_correlations.rds')
 
 # Save table of scores for supplementary material
 write.csv(supp_correlations, 'tables/supplementary_model_scores.csv')
+
+
 
