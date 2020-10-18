@@ -33,19 +33,11 @@ dat <- readRDS('input/dat_cleaned.rds')
 # landcover
 mixedwood <- raster("input/rasters/mixedwood_raster.tif")
 names(mixedwood) <- 'mixedwood'
-coniferous <- raster("input/rasters/coniferous_raster.tif")
-names(coniferous) <- 'coniferous'
 
-# NDVI seasonal
+# density
 for(year in c('2004', '2005', '2008',
               '2009', '2011', '2012', '2015', '2016')){
-  assign(paste('NDVIseas', year, sep='_'), raster(paste('input/rasters/NDVI-seasonal-', paste(year, '-reproj.tif', sep=''), sep='')))
-}
-
-# NDVI difference
-for(year in c('2004', '2005', '2008',
-              '2009', '2011', '2012', '2015', '2016')){
-  assign(paste('NDVIdiff', year, sep='_'), raster(paste('input/rasters/NDVI-difference-', paste(year, '-reproj.tif', sep=''), sep='')))
+  assign(paste('elk_density', year, sep='_'), raster(paste('input/rasters/elk_density_', paste(year, '.tif', sep=''), sep='')))
 }
 
 # distance to road
@@ -69,7 +61,7 @@ gfr_outputs <- readRDS('results/RSF_outputs/temp_gfr.rds')
 ranef_outputs <- readRDS('results/RSF_outputs/temp_ranef.rds')
 
 # Specify blank data table to compile results
-
+# 
 # no_FR_outputs <- data.table()
 # gfr_outputs <- data.table()
 # ranef_outputs <- data.table()
@@ -90,17 +82,17 @@ for (input_folder in folder_list){
   ############################################################################################
   ############################################################################################
   
-  base_covars=c('road', 'mixedwood', 'coniferous')
+  base_covars=c('road', 'mixedwood')
   ranef_covars=c('(1 | elkyear)', '(0 + road | elkyear)', '(0 + mixedwood | elkyear)')
   gfr_covars=c('road*mean_road', 'mixedwood*mean_mixedwood', 'road*mean_mixedwood', 'mixedwood*mean_road')
   
   print(WS_data$iteration[1])
-    
+  
   ###### No FR ---
   no_FR <- glmer(reformulate(c(base_covars, '( 1 | elkyear)'), response = 'sample'),
                  family = binomial,
                  data = WS_data)
-  no_out <- broom::tidy(no_FR)
+  no_out <- broom.mixed::tidy(no_FR)
   # Remove extra covariates
   no_out <- no_out[c(2:4),]
   no_out <- as.data.table(no_out)
@@ -110,17 +102,17 @@ for (input_folder in folder_list){
   ranef <- glmer(reformulate(c(base_covars, ranef_covars), response = 'sample'),
                  family = binomial,
                  data = WS_data)
-  ranef_out <- broom::tidy(ranef)
+  ranef_out <- broom.mixed::tidy(ranef)
   # Remove extra covariates
   ranef_out <- ranef_out[c(2:4),]
   ranef_out <- as.data.table(ranef_out)
   ranef_out[, c('iteration', 'dates', 'type', 'numbelk') := .(rep(WS_data$iteration[1],nrow(ranef_out)), rep(input_folder, nrow(ranef_out)), rep('ranef', nrow(ranef_out)), rep(length(unique(WS_data$elkyear))))]
   
   ###### GFR model ---
-  gfr <- glmer(reformulate(c(base_covars, gfr_covars, '( 1 | elkyear)'), response = 'sample'),
+  gfr <- glmer(reformulate(c(base_covars, gfr_covars, ranef_covars), response = 'sample'),
                family = binomial,
                data = WS_data)
-  gfr_out <- broom::tidy(gfr)
+  gfr_out <- broom.mixed::tidy(gfr)
   # Remove extra covariates
   gfr_out <- gfr_out[c(2:10),]
   gfr_out <- as.data.table(gfr_out)
@@ -145,7 +137,7 @@ for (input_folder in folder_list){
     sp_sub <- SpatialPoints(coords=sub_dat[,c('X','Y')], proj4string =CRS("+init=epsg:26914"))
     mcp_sub <- mcp(sp_sub)
     
-    # Extract the elk year from each predRSF containing covariates and average HR covder
+    # Extract the elk year from each predRSF containing covariates and average HR cover
     OOS_sub <- OOS_data[elkyear==i]
     WS_sub <- WS_data[elkyear==i]
     
@@ -154,15 +146,13 @@ for (input_folder in folder_list){
       next
     }
     
-    # Get NDVI rasters corresponding to the elkyear
-    NDVI_seas_sub <- get(paste('NDVIseas_', OOS_sub$year[1], sep=''))
-    names(NDVI_seas_sub) <- 'NDVI_seas'
-    NDVI_diff_sub <- get(paste('NDVIdiff_', OOS_sub$year[1], sep=''))
-    names(NDVI_diff_sub) <- 'NDVI_diff'
+    # Get density rasters corresponding to the elkyear
+    density_sub <- get(paste('elk_density_', OOS_sub$year[1], sep=''))
+    names(density_sub) <- 'density'
     
     mixedwood_crop <- crop(mixedwood, mcp_sub)
     
-    for(spat_layer in c(coniferous, distToRoad, NDVI_diff_sub, NDVI_seas_sub)){
+    for(spat_layer in c(density_sub, distToRoad)){
       layer_crop <- crop(spat_layer, mcp_sub)
       layer_resamp <- resample(layer_crop, mixedwood_crop, method='bilinear')
       assign(paste(names(spat_layer), 'crop', sep='_'), layer_resamp)
@@ -173,9 +163,8 @@ for (input_folder in folder_list){
     log_road_crop <- na.omit(log_road_crop)
     
     # Create raster stack
-    predstack<-stack(mixedwood_crop, coniferous_crop, log_road_crop,
-                     NDVI_diff_crop, NDVI_seas_crop)
-    names(predstack)<-c("mixedwood", "coniferous", "road", "NDVI_diff", "NDVI_seas")
+    predstack<-stack(mixedwood_crop, log_road_crop)
+    names(predstack)<-c("mixedwood", "road")
     
     # Extract raster means for FR
     mean_mixedwood <- OOS_sub[1]$mean_mixedwood
@@ -187,15 +176,11 @@ for (input_folder in folder_list){
     
     ###### OOS RSF ---
     id_OOS_RSF <- glm(reformulate(base_covars, response = 'sample'),
-                  family = binomial,
-                  data = OOS_sub)
-    id_OOS_out <- as.data.table(broom::tidy(id_OOS_RSF))
-    # Stop if the model doesn't converge
-    if(any(id_OOS_out$std.error>30)){
-      next
-    }
-    # Stop if not all covariates are modelled
-    if(nrow(id_OOS_out)<4){
+                      family = binomial,
+                      data = OOS_sub)
+    id_OOS_out <- as.data.table(broom.mixed::tidy(id_OOS_RSF))
+    # Stop if the model doesn't converge or not all covariates are modelled
+    if(any(id_OOS_out$std.error>30, na.rm=T) | any(is.na(id_OOS_out$std.error))){
       next
     }
     # Remove intercept
@@ -203,15 +188,11 @@ for (input_folder in folder_list){
     
     ###### WS RSF ---
     id_WS_RSF <- glm(reformulate(base_covars, response = 'sample'),
-                      family = binomial,
-                      data = WS_sub)
-    id_WS_out <- as.data.table(broom::tidy(id_WS_RSF))
-    # Stop if the model doesn't converge
-    if(any(id_WS_out$std.error>30)){
-      next
-    }
-    # Stop if not all covariates are modelled
-    if(nrow(id_WS_out)<4){
+                     family = binomial,
+                     data = WS_sub)
+    id_WS_out <- as.data.table(broom.mixed::tidy(id_WS_RSF))
+    # Stop if the model doesn't converge or not all covariates are modelled
+    if(any(id_WS_out$std.error>30, na.rm=T) | any(is.na(id_WS_out$std.error))){
       next
     }
     # Remove intercept
@@ -224,39 +205,34 @@ for (input_folder in folder_list){
     # Individual level out-of-sample model
     pred_WS <- 
       id_WS_out[term=='road']$estimate*predstack$road +
-      id_WS_out[term=='mixedwood']$estimate*predstack$mixedwood +
-      id_WS_out[term=='coniferous']$estimate*predstack$coniferous
+      id_WS_out[term=='mixedwood']$estimate*predstack$mixedwood
     
     # Individual level within-sample model
     pred_OOS <- 
       id_OOS_out[term=='road']$estimate*predstack$road +
-      id_OOS_out[term=='mixedwood']$estimate*predstack$mixedwood +
-      id_OOS_out[term=='coniferous']$estimate*predstack$coniferous
+      id_OOS_out[term=='mixedwood']$estimate*predstack$mixedwood
     
     # No FR
     pred_no_FR <- 
       no_out[term=='road']$estimate*predstack$road +
-      no_out[term=='mixedwood']$estimate*predstack$mixedwood +
-      no_out[term=='coniferous']$estimate*predstack$coniferous
+      no_out[term=='mixedwood']$estimate*predstack$mixedwood
     
     # Ranef
     pred_ranef <- 
       ranef_out[term=='road']$estimate*predstack$road +
-      ranef_out[term=='mixedwood']$estimate*predstack$mixedwood +
-      ranef_out[term=='coniferous']$estimate*predstack$coniferous
+      ranef_out[term=='mixedwood']$estimate*predstack$mixedwood
     
     # GFR Model 1 population level generalized functional response model
     # FRij = raster*(Bi + Bi^2*hi + Bij*hj)
     pred_gfr <-
-      gfr_out[term=='coniferous']$estimate*predstack$coniferous +
       predstack$road*as.numeric((gfr_out[term=='road']$estimate + 
                                    (gfr_out[term=='road:mean_road']$estimate*mean_road) +
                                    (gfr_out[term=='road:mean_mixedwood']$estimate*mean_mixedwood))) +
       predstack$mixedwood*as.numeric((gfr_out[term=='mixedwood']$estimate + 
-                                 (gfr_out[term=='mixedwood:mean_road']$estimate*mean_road) +
-                                 (gfr_out[term=='mixedwood:mean_mixedwood']$estimate*mean_mixedwood)))
+                                        (gfr_out[term=='mixedwood:mean_road']$estimate*mean_road) +
+                                        (gfr_out[term=='mixedwood:mean_mixedwood']$estimate*mean_mixedwood)))
     
-
+    
     # Run LMs for each model in comparison to the out-of-sample individual model
     for(model in c('WS', 'no_FR', 'ranef', 'gfr')){
       model_sub <- get(paste('pred', model, sep='_'))
@@ -264,8 +240,8 @@ for (input_folder in folder_list){
       corr_lm <- as.numeric(summary(model_lm)$adj.r.squared)
       assign(paste(model, 'corr', sep='_'), corr_lm)
     }
- 
-   
+    
+    
     # Bind results
     corrs <- data.table(elkyear = i, year = year, npoints_OOS = OOS_sub[1]$npoints, npoints_WS = WS_sub[1]$npoints,
                         individual = WS_corr, no_FR = no_FR_corr, ranef = ranef_corr, gfr = gfr_corr)
