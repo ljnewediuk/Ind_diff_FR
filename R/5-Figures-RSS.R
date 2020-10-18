@@ -23,8 +23,11 @@ lapply(libs, require, character.only = TRUE)
 # Load means
 model_means <- readRDS('results/RSF_outputs/model_means.rds')
 
+# Load RMSE
+all_rmse <- readRDS('results/gof/all_rmse.rds')
+
 # Load individual model outputs
-indiv_mods <- readRDS('results/RSF_outputs/id_hab_covariates.rds')
+indiv_mods <- readRDS('results/RSF_outputs/mw_rd_RSFs.rds')
 indiv_mods <- indiv_mods[type=='OOS']
 
 # Remove any indiv_mod iteration with fewer than 150 points
@@ -79,13 +82,13 @@ for(hab in c('mixedwood', 'road')){
     x_title <- 'Mean mixed forest in home range'
     leg_title <- 'Mean road distance \n in home range (km)'
     y_title <- 'RSS for mixed forest'
-    ranef_RMSE <- 'RMSE = 0.53'
-    gfr_RMSE <- 'RMSE = 1.68'
+    ranef_RMSE <- paste('RMSE =', round(mean(all_rmse$ranef_mw, na.rm=T), digits=2))
+    gfr_RMSE <- paste('RMSE =', round(mean(all_rmse$gfr_mw, na.rm=T), digits=2))
     pos_x <- 0.25
     pos_y <- -0.6
-    pos_L <- 1.35
-    pos_M <- 0.65
-    pos_H <- 0.43
+    pos_L <- 1.43
+    pos_M <- 0.98
+    pos_H <- 0.81
     pos_x_lev <- 1
   } else {
     delta_hi <- delta_hi_rd
@@ -94,13 +97,13 @@ for(hab in c('mixedwood', 'road')){
     x_title <- 'Mean log(distance to road) in home range'
     leg_title <- 'Mean mixed forest \n in home range'
     y_title <- 'RSS for distance from road'
-    ranef_RMSE <- 'RMSE = 1.71'
-    gfr_RMSE <- 'RMSE = 2.05'
+    ranef_RMSE <- paste('RMSE =', round(mean(all_rmse$ranef_rd), digits=2))
+    gfr_RMSE <- paste('RMSE =', round(mean(all_rmse$gfr_rd), digits=2))
     pos_x <- 7
     pos_y <- -28
-    pos_L <- 44
-    pos_M <- 20
-    pos_H <- 16
+    pos_L <- 37
+    pos_M <- 23
+    pos_H <- 20
     pos_x_lev <- 10
   }
   
@@ -233,8 +236,8 @@ for(hab in c('mixedwood', 'road')){
   ##################################
   
   # Arrange final plots in panels and save
-  model_plots <- plot_grid(ranef_plot, gfr_plot, grad_legend, ncol=3, nrow=1, rel_widths = c(7,7,4), labels=c('Ran. Eff.','GFR'), label_x=c(0.1,0.1), label_y=c(0.95,0.95), label_size=20)
-  tiff(paste("figures/", '.tiff', sep=hab), width = 11, height = 6, units = 'in', res = 300)
+  model_plots <- plot_grid(ranef_plot, gfr_plot, grad_legend, ncol=3, nrow=1, rel_widths = c(7,7,4), labels=c('A - Ran. Eff.','B - GFR'), label_x=c(-.05,-.05), label_y=c(0.95,0.95), label_size=20)
+  # tiff(paste("figures/", '.tiff', sep=hab), width = 11, height = 6, units = 'in', res = 300)
   grid.arrange(arrangeGrob(model_plots, left = textGrob(y_title, rot=90, gp=gpar(fontsize=17), vjust=0.2), bottom = textGrob(x_title, gp=gpar(fontsize=17), hjust=0.7)))
 
   assign(paste(hab, 'rss_population', sep='_'), rss_population)
