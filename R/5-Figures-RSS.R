@@ -43,16 +43,16 @@ indiv_mods <- indiv_mods[numb_pts>=150]
 ### Road selection at three levels of forest availability ----
 
 # Range of road values for x axis
-rd_range <- seq(10,6,length.out=100)
+rd_range <- seq(8.5,3.9,length.out=100)
 delta_hi_rd <- rd_range
 
 # mixedwood availability:
 # high
-mw_high <- log(max(indiv_mods$mean_mixedwood))
+mw_high <- 1.0
 # intermediate
-mw_mid <- log(mean(indiv_mods$mean_mixedwood))
+mw_mid <- 0.50
 # low
-mw_low <- log(min(indiv_mods$mean_mixedwood))
+mw_low <- 0.01
 
 ### Mixedwood selection at three levels of road availability ----
 
@@ -62,11 +62,11 @@ delta_hi_mw <- 1-mw_range
 
 # road availability:
 # high
-rd_high <- log(max(indiv_mods$mean_road))
+rd_high <- 8.5
 # intermediate
-rd_mid <- log(mean(indiv_mods$mean_road))
+rd_mid <- 6.2
 # low
-rd_low <- log(min(indiv_mods$mean_road))
+rd_low <- 3.9
 
 #########################################
 ### PART 2: COMPLETE RSS CALCULATIONS ###
@@ -77,34 +77,32 @@ for(hab in c('mixedwood', 'road')){
   # Set conditions for each habitat type
   if(hab=='mixedwood'){
     delta_hi <- delta_hi_mw
+    mean_hi <- mean(indiv_mods$mean_mixedwood)
+    mean_hj <- mean(indiv_mods$mean_road)
     low_col <- '#F0FFF0'
     high_col <- '#23A625'
-    x_title <- 'Mean mixed forest in home range'
+    x_title <- bquote("Mixed forest cover at location x"[j])
     leg_title <- 'Mean road distance \n in home range (km)'
-    y_title <- 'RSS for mixed forest'
-    ranef_RMSE <- paste('RMSE =', round(mean(all_rmse$ranef_mw, na.rm=T), digits=2))
-    gfr_RMSE <- paste('RMSE =', round(mean(all_rmse$gfr_mw, na.rm=T), digits=2))
-    pos_x <- 0.25
-    pos_y <- -0.6
-    pos_L <- 1.43
-    pos_M <- 0.98
-    pos_H <- 0.81
-    pos_x_lev <- 1
+    y_title <- 'log RSS for mixed forest'
+    ranef_RMSE <- paste('RMSE =', round(median(all_rmse[habitat=='mixedwood']$rmse_ranef, na.rm=T), digits=2))
+    gfr_RMSE <- paste('RMSE =', round(median(all_rmse[habitat=='mixedwood']$rmse_gfr, na.=T), digits=2))
+    pos_x <- 0.75
+    pos_y <- -7.5
+    pos_x_lev <- 0
   } else {
     delta_hi <- delta_hi_rd
+    mean_hi <- mean(log(indiv_mods$mean_road))
+    mean_hj <- mean(indiv_mods$mean_mixedwood)
     low_col <- '#FAF6D2'
     high_col <- '#FC7878'
-    x_title <- 'Mean log(distance to road) in home range'
+    x_title <- bquote("Distance to road (km) at location x"[j])
     leg_title <- 'Mean mixed forest \n in home range'
-    y_title <- 'RSS for distance from road'
-    ranef_RMSE <- paste('RMSE =', round(mean(all_rmse$ranef_rd), digits=2))
-    gfr_RMSE <- paste('RMSE =', round(mean(all_rmse$gfr_rd), digits=2))
-    pos_x <- 7
-    pos_y <- -28
-    pos_L <- 37
-    pos_M <- 23
-    pos_H <- 20
-    pos_x_lev <- 10
+    y_title <- 'log RSS for distance from road'
+    ranef_RMSE <- paste('RMSE =', round(median(all_rmse[habitat=='road']$rmse_ranef, na.rm=T), digits=2))
+    gfr_RMSE <- paste('RMSE =', round(median(all_rmse[habitat=='road']$rmse_gfr, na.rm=T), digits=2))
+    pos_x <- 7.1
+    pos_y <- -3
+    pos_x_lev <- 3.912023
   }
   
   # Create tables for RSS values
@@ -122,18 +120,36 @@ for(hab in c('mixedwood', 'road')){
     
     # Set conditions for habitat type
     if(hab=='mixedwood'){
-      mean_hab <- indiv_sub$mean_road
-    } else {
+      mean_hab2 <- indiv_sub$mean_road
       mean_hab <- indiv_sub$mean_mixedwood
+      hab2 <- 'road'
+    } else {
+      mean_hab2 <- indiv_sub$mean_mixedwood
+      mean_hab <- indiv_sub$mean_road
+      hab2 <- 'mixedwood'
     }
     
     # Set parameters
-    hi <- mean(indiv_sub[term==hab]$estimate)
-    hj_mu <- mean(mean_hab)
+    Bi <- mean(indiv_sub[term==hab]$estimate)
+    Bj <- mean(indiv_sub[term==hab2]$estimate)
+    if(hab=='mixedwood'){
+      hj_mu <- mean(log(mean_hab2))
+      hi_mu <- mean(mean_hab)
+    } else {
+      hi_mu <- mean(log(mean_hab))
+      hj_mu <- mean(mean_hab2)
+    }
+
+    
     
     # Calculate RSS
-    rss <- delta_hi*hi
-    rss_sub <- data.table(elkyear=rep(i, length(hi)), delta_hi=delta_hi, rss=rss, mean=rep(hj_mu, length(hi)))
+    if(hab=='mixedwood'){
+      rss <- (hi_mu-delta_hi)*Bi + log(hj_mu^Bj)
+    } else {
+      rss <- log((hi_mu/(hi_mu-(hi_mu-delta_hi)))^Bi) + hj_mu*Bj
+    }
+    
+    rss_sub <- data.table(elkyear=rep(i, length(delta_hi)), delta_hi=delta_hi, rss=rss, mean=rep(hj_mu, length(Bi)))
     rss_individual <- rbind(rss_individual, rss_sub)
   }
   
@@ -141,7 +157,7 @@ for(hab in c('mixedwood', 'road')){
   ### PART 2 - B) POPULATION ###
   ##############################
   
-  for(mod_type in c('gfr', 'ranef', 'no_FR')){
+  for(mod_type in c('gfr', 'ranef')){
     for(covar_level in c('high', 'mid', 'low')){
       
       # Subset model type
@@ -151,24 +167,38 @@ for(hab in c('mixedwood', 'road')){
       if(hab=='mixedwood'){
         v1 <- 'mw'
         v2 <- 'rd'
+        hab2 <- 'road'
       } else {
         v1 <- 'rd'
         v2 <- 'mw'
+        hab2 <- 'mixedwood'
       }
         
       # Set parameters
       hj <- get(paste(v2, covar_level, sep='_'))
-      hx <- model_sub[covariate==v1]$beta
-      hxij <- model_sub[covariate==paste(v1, v2, sep='_')]$beta
-      hxii <- model_sub[covariate==paste(v1, v1, sep='_')]$beta
+      Bi <- model_sub[covariate==v1]$beta
+      Bj <- model_sub[covariate==v2]$beta
+      Bi_mu <- model_sub[covariate==paste(v1, 'mean', sep='_')]$beta
+      Bj_mu <- model_sub[covariate==paste(v2, 'mean', sep='_')]$beta
+      Bij <- model_sub[covariate==paste(v1, v2, sep='_')]$beta
+      Bji <- model_sub[covariate==paste(v2, v1, sep='_')]$beta
+      Bii <- model_sub[covariate==paste(v1, v1, sep='_')]$beta
+      Bjj <- model_sub[covariate==paste(v2, v2, sep='_')]$beta
+      
       
       # Set condtions for model type (which equation to use)
-      if(mod_type=='gfr'){
-        rss <- delta_hi*(hx+hxij*hj+hxii)
-      } else {
-        rss <- delta_hi*hx
+      if(mod_type=='gfr' & hab=='mixedwood'){
+        rss <- (mean_hi-delta_hi)*(Bi+Bij*hj+Bii*mean_hi) + log(hj^(Bj+Bji*mean_hi+Bjj*hj)) + mean_hi*Bi_mu + hj^Bj_mu
       }
-      
+      if(mod_type=='ranef' & hab=='mixedwood'){
+        rss <- (mean_hi-delta_hi)*Bi + log(log(mean_hj)^Bj)
+      }
+      if(mod_type=='gfr' & hab=='road'){
+        rss <- log((mean_hi/(mean_hi-(mean_hi-delta_hi)))^(Bi+Bij*hj+Bii*mean_hi)) + hj*(Bj+Bji*mean_hi+Bjj*hj) + mean_hi^Bi_mu + hj*Bj_mu
+      }
+      if(mod_type=='ranef' & hab=='road'){
+        rss <- log((mean_hi/(mean_hi-(mean_hi-delta_hi)))^Bi) + mean_hj*Bj
+      }
       # Calculate RSS
       rss <- as.data.table(rss)
       colnames(rss) <- paste(mod_type, covar_level, sep='_')
@@ -180,7 +210,7 @@ for(hab in c('mixedwood', 'road')){
   
   # Convert mean distance to road to km if hab = mixedwood
   if(hab=='mixedwood'){
-    rss_individual$mean <-rss_individual$mean/1000
+    rss_individual$mean <- log(rss_individual$mean)
   }
   
   #################################
@@ -204,9 +234,9 @@ for(hab in c('mixedwood', 'road')){
     # Annotate the rmse
     annotate('text', x=pos_x, y=pos_y, label=gfr_RMSE, size=5) +
     # Annotate high, medium, and low
-    annotate('text', y=pos_L, x=pos_x_lev, label='L', size=6, fontface='bold') +
-    annotate('text', y=pos_M, x=pos_x_lev, label='M', size=6, fontface='bold') +
-    annotate('text', y=pos_H, x=pos_x_lev, label='H', size=6, fontface='bold')
+    annotate('text', y=(rss_population[delta_hi==min(rss_population$delta_hi)]$gfr_low), x=pos_x_lev, label='L', size=4.5, fontface='bold') +
+    annotate('text', y=rss_population[delta_hi==min(rss_population$delta_hi)]$gfr_mid, x=pos_x_lev, label='M', size=4.5, fontface='bold') +
+    annotate('text', y=(rss_population[delta_hi==min(rss_population$delta_hi)]$gfr_high), x=pos_x_lev, label='H', size=4.5, fontface='bold')
     
   # extract legend
   grad_legend <- get_legend(gfr_plot)
@@ -231,6 +261,12 @@ for(hab in c('mixedwood', 'road')){
   # make sure plot axes align with GFR plot along y
   ranef_plot <- ranef_plot + ylim(layer_scales(gfr_plot)$y$range$range[1],layer_scales(gfr_plot)$y$range$range[2])
   
+  # Convert x axis to log if distance to road
+  if(hab=='road'){
+    gfr_plot <- gfr_plot + scale_x_continuous(breaks=c(3.912023,5.298317,6.214608,7.090077,8.006368), labels=c(0.05, 0.20, 0.50, 1.20, 3.00))
+    ranef_plot <- ranef_plot + scale_x_continuous(breaks=c(3.912023,5.298317,6.214608,7.090077,8.006368), labels=c(0.05, 0.20, 0.50, 1.20, 3.00))
+  }
+  
   ##################################
   ### PART 4 - SAVE PLOT OUTPUTS ###
   ##################################
@@ -238,7 +274,7 @@ for(hab in c('mixedwood', 'road')){
   # Arrange final plots in panels and save
   model_plots <- plot_grid(ranef_plot, gfr_plot, grad_legend, ncol=3, nrow=1, rel_widths = c(7,7,4), labels=c('A - Ran. Eff.','B - GFR'), label_x=c(-.05,-.05), label_y=c(0.95,0.95), label_size=20)
   # tiff(paste("figures/", '.tiff', sep=hab), width = 11, height = 6, units = 'in', res = 300)
-  grid.arrange(arrangeGrob(model_plots, left = textGrob(y_title, rot=90, gp=gpar(fontsize=17), vjust=0.2), bottom = textGrob(x_title, gp=gpar(fontsize=17), hjust=0.7)))
+  grid.arrange(arrangeGrob(model_plots, left = textGrob(y_title, rot=90, gp=gpar(fontsize=17), vjust=0.2), bottom = textGrob(label=x_title, gp=gpar(fontsize=17), hjust=0.7)))
 
   assign(paste(hab, 'rss_population', sep='_'), rss_population)
   assign(paste(hab, 'rss_individual', sep='_'), rss_individual)
@@ -247,4 +283,6 @@ for(hab in c('mixedwood', 'road')){
   assign(paste(hab, 'gfr_plot', sep='_'), gfr_plot)
   
 }
+
+
 
