@@ -74,37 +74,39 @@ ggplot(Npoints_id, aes(x=N)) + geom_density(fill='#FF4449', alpha=0.5) +
   xlab('Number location points/individual') + ylab('Density')
 
 ##########################################################################
-### Supplementary Figure A1: Functional response mixedwood x mixedwood ###
-##########################################################################
-# Plots functional response for mixedwood with increasing cover of 
-# mixedwood in the home range
-
-# tiff('figures/suppA1.tiff', width = 9.5, height = 9.5, units = 'in', res = 300)
-
-ggplot(covariates[term=='mixedwood'], aes(x=mean_mixedwood, y=estimate)) + geom_point(alpha=0.8, colour='grey') + 
-  geom_smooth(method='lm', colour='black') +
-  annotate('text', x=0.25, y=-3.65, label=paste('R^2 ==', '0.06'), parse=T, size=5) +
-  theme(panel.background = element_rect(fill='white'), axis.line = element_line(colour='black'), axis.text = element_text(size=15),
-        axis.title.x = element_text(size=18, vjust=-3), axis.title.y = element_text(size=18, vjust=5), plot.margin = unit(c(1,1,1,1),'cm'),
-        strip.text = element_text(size=15), panel.spacing = unit(1,'cm')) +
-  ylab('Selection for mixed forest') + xlab('Mean cover mixed forest')
-
-##########################################################################
-### Supplementary Figure A2: Functional response mixedwood x mixedwood ###
+### Supplementary Figure A1: Functional response mixedwood x road ###
 ##########################################################################
 # Plots functional response for mixedwood with increasing distance to 
 # road in the home range
 
-# tiff('figures/suppA2.tiff', width = 9.5, height = 9.5, units = 'in', res = 300)
+# tiff('figures/suppA1.tiff', width = 9.5, height = 9.5, units = 'in', res = 300)
 
 ggplot(covariates[term=='mixedwood'], aes(x=mean_road/1000, y=estimate)) + geom_point(alpha=0.8, colour='grey') + 
   geom_smooth(method='lm', colour='black') +
-  annotate('text', x=2.5, y=-3.65, label=paste('R^2 ==', '0.03'), parse=T, size=5) +
+  geom_hline(yintercept=0, size=0.5, colour='black', alpha=0.5) +
+  annotate('text', x=2.5, y=-3.65, label=paste('R^2 ==', round(summary(lm(covariates[term=='mixedwood']$estimate~covariates[term=='mixedwood']$mean_road))$adj.r.squared,2)), parse=T, size=5) +
   theme(panel.background = element_rect(fill='white'), axis.line = element_line(colour='black'), axis.text = element_text(size=15),
         axis.title.x = element_text(size=18, vjust=-3), axis.title.y = element_text(size=18, vjust=5), plot.margin = unit(c(1,1,1,1),'cm'),
         strip.text = element_text(size=15), panel.spacing = unit(1,'cm')) +
   ylab('Selection for mixed forest') + xlab('Mean distance to road (km)')
-  
+
+##########################################################################
+### Supplementary Figure A2: Functional response road x mixedwood ###
+##########################################################################
+# Plots functional response for distance to road with increasing cover of 
+# mixedwood in the home range
+
+# tiff('figures/suppA2.tiff', width = 9.5, height = 9.5, units = 'in', res = 300)
+
+ggplot(covariates[term=='road'], aes(x=mean_mixedwood, y=estimate)) + geom_point(alpha=0.8, colour='grey') + 
+  geom_smooth(method='lm', colour='black') +
+  geom_hline(yintercept=0, size=0.5, colour='black', alpha=0.5) +
+  annotate('text', x=0.2, y=-18, label=paste('R^2 ==', round(summary(lm(covariates[term=='road']$estimate~covariates[term=='road']$mean_mixedwood))$adj.r.squared,2)), parse=T, size=5) +
+  theme(panel.background = element_rect(fill='white'), axis.line = element_line(colour='black'), axis.text = element_text(size=15),
+        axis.title.x = element_text(size=18, vjust=-3), axis.title.y = element_text(size=18, vjust=5), plot.margin = unit(c(1,1,1,1),'cm'),
+        strip.text = element_text(size=15), panel.spacing = unit(1,'cm')) +
+  ylab('Selection for distance to road') + xlab('Mean cover mixed forest')
+
 ###################################################################
 ### Supplementary Figure A3: Change in R2 with number of points ###
 ###################################################################
@@ -139,9 +141,9 @@ levels(covariates$term) <- c('Mixed forest', 'Road avoidance')
 ggplot(covariates, aes(x=numb_pts, y=estimate)) + geom_point() + 
   facet_wrap(~term) +
   geom_vline(data = data.frame(xint=300,term="Road avoidance"), aes(xintercept = xint), color='red', linetype='dashed') +
-  geom_vline(data = data.frame(xint=375,term="Road avoidance"), aes(xintercept = xint), color='red', linetype='dashed') +
+  geom_vline(data = data.frame(xint=385,term="Road avoidance"), aes(xintercept = xint), color='red', linetype='dashed') +
   geom_vline(data = data.frame(xint=300,term="Mixed forest"), aes(xintercept = xint), color='red', linetype='dashed') +
-  geom_vline(data = data.frame(xint=375,term="Mixed forest"), aes(xintercept = xint), color='red', linetype='dashed') +
+  geom_vline(data = data.frame(xint=385,term="Mixed forest"), aes(xintercept = xint), color='red', linetype='dashed') +
   theme(panel.background = element_rect(fill='white'), axis.line = element_line(colour='black'), axis.text = element_text(size=15, colour='black'),
         axis.title.x = element_text(size=18, vjust=-3, colour='black'), axis.title.y = element_text(size=18, vjust=5, colour='black'), 
         plot.margin = unit(c(1,1,1,1),'cm'), strip.text = element_text(size=15), panel.spacing = unit(1,'cm')) +
@@ -161,7 +163,7 @@ ggplot(covariates, aes(x=numb_pts)) + geom_histogram() +
         axis.title.x = element_text(size=18, vjust=-3), axis.title.y = element_text(size=18, vjust=5), plot.margin = unit(c(1,1,1,1),'cm')) +
   geom_vline(xintercept = 150, color='blue', linetype='dashed') +
   geom_vline(xintercept = 300, color='red', linetype='dashed') +
-  geom_vline(xintercept = 375, color='red', linetype='dashed') +
+  geom_vline(xintercept = 385, color='red', linetype='dashed') +
   xlab('Number location points/iteration') + ylab('N')
 
 #####################################################################
