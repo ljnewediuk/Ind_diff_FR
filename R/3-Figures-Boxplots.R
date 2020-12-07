@@ -81,11 +81,11 @@ supp_correlations <- merge(bestmodelscores[,1:3], worstmodelscores[,1:3], by='el
 supp_correlations <- supp_correlations[order(elkyear)]
 
 # Make data.table for boxplot
-melt_correlations <- melt(all_correlations, measure.vars=c('individual', 'no_FR', 'ranef', 'gfr'))
+melt_correlations <- melt(all_correlations, measure.vars=c('individual', 'ranef', 'gfr'))
 
-tiff('figures/fig2.tiff', width = 7, height = 6, units = 'in', res = 300)
+# tiff('figures/fig2.tiff', width = 7, height = 6, units = 'in', res = 300)
 
-ggplot(melt_correlations[variable=='individual' | variable=='ranef' | variable=='gfr'], aes(x=variable, y=value, col=variable)) + 
+ggplot(melt_correlations[variable=='individual' | variable=='no_FR' | variable=='ranef' | variable=='gfr'], aes(x=variable, y=value, col=variable)) + 
   # Add zero line at median of individual level model
   geom_hline(yintercept=median(melt_correlations[variable=='individual']$value), col='#000000', linetype='dashed') +
   # Add boxplots
