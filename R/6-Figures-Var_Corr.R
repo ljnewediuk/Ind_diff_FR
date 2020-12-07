@@ -33,11 +33,14 @@ for(i in unique(indiv_mods$elkyear)){
 
 }
 
-tiff('figures/variance-performance.tiff', width = 7, height = 6, units = 'in', res = 300)
+# Calculate R2 correlation
+variance_r2 <- summary(lm(data=varByID, var_estimate~difference))$r.squared
+
+# tiff('figures/variance-performance.tiff', width = 7, height = 7, units = 'in', res = 300)
 ggplot(varByID, aes(x=var_estimate,  y=difference)) +  geom_point(alpha=0.3, size=2) + 
   geom_hline(yintercept=0, colour='black', linetype='dashed') +
   geom_smooth(method='lm', colour='black') +
-  annotate('text', x=0.4, y=0.4, label=paste('R^2 ==', '0.13'), parse=T, size=5) +
+  annotate('text', x=0.4, y=0.4, label=paste('R^2 ==', round(variance_r2, 2)), parse=T, size=5) +
   theme(panel.background=element_rect(fill='white', colour='black'), panel.grid=element_blank(),
         axis.text=element_text(size=12, colour='black'), axis.title.x=element_text(size=15, colour='black', vjust=-3),
         axis.title.y=element_text(size=15, colour='black', vjust=3), plot.margin=unit(c(.25,.25,1,1), 'cm')) +
