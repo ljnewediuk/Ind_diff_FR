@@ -12,7 +12,7 @@
 ##    level model and selection predicted by the individual's excluded data
 
 ### Packages ----
-libs <- c('data.table', 'rgdal', 'sp', 'adehabitatHR', 'raster', 'lme4', 'survival')
+libs <- c('data.table', 'rgdal', 'sp', 'adehabitatHR', 'raster', 'lme4', 'survival', 'glmmTMB')
 lapply(libs, require, character.only = TRUE)
 
 ### Load data from RSF outputs folder ----
@@ -61,7 +61,7 @@ gfr_outputs <- readRDS('results/RSF_outputs/temp_gfr.rds')
 ranef_outputs <- readRDS('results/RSF_outputs/temp_ranef.rds')
 
 # Specify blank data table to compile results
-# 
+
 # no_FR_outputs <- data.table()
 # gfr_outputs <- data.table()
 # ranef_outputs <- data.table()
@@ -82,10 +82,15 @@ for (input_folder in folder_list){
   ############################################################################################
   ############################################################################################
   
+  # Define the covariate sets
   base_covars=c('road', 'mixedwood')
   ranef_covars=c('(1 | elkyear)', '(0 + road | elkyear)', '(0 + mixedwood | elkyear)')
   gfr_covars=c('road*mean_road', 'mixedwood*mean_mixedwood', 'road*mean_mixedwood', 'mixedwood*mean_road')
   
+  # Use a weighted likelihood of 1000 for available points (Muff method)
+  WS_data[, 'weight' := .(1000^(1-sample))]
+  
+  # Label the iteration before modelling
   print(WS_data$iteration[1])
   
   ###### No FR ---
@@ -94,27 +99,37 @@ for (input_folder in folder_list){
                  data = WS_data)
   no_out <- broom.mixed::tidy(no_FR)
   # Remove extra covariates
-  no_out <- no_out[c(2:4),]
+  no_out <- no_out[c(2:3),]
   no_out <- as.data.table(no_out)
   no_out[, c('iteration', 'dates', 'type', 'numbelk') := .(rep(WS_data$iteration[1],nrow(no_out)), rep(input_folder, nrow(no_out)), rep('no_FR', nrow(no_out)), rep(length(unique(WS_data$elkyear))))]
   
   ###### Ranef model ---
-  ranef <- glmer(reformulate(c(base_covars, ranef_covars), response = 'sample'),
-                 family = binomial,
-                 data = WS_data)
-  ranef_out <- broom.mixed::tidy(ranef)
+  ranef <- glmmTMB(reformulate(c(base_covars, ranef_covars), response = 'sample'),
+                   family = binomial(),
+                   data = WS_data, doFit=F, weights=weight)
+  # Fix the sd of the first random term (1 | elkyear) to 10^6
+  ranef$parameters$theta[1] = log(1e3)
+  ranef$mapArg = list(theta=factor(c(NA,1:2)))
+  ranef_mod <- glmmTMB::fitTMB(ranef)
+  # Tidy
+  ranef_out <- broom.mixed::tidy(ranef_mod)
   # Remove extra covariates
-  ranef_out <- ranef_out[c(2:4),]
+  ranef_out <- ranef_out[c(2:3),]
   ranef_out <- as.data.table(ranef_out)
   ranef_out[, c('iteration', 'dates', 'type', 'numbelk') := .(rep(WS_data$iteration[1],nrow(ranef_out)), rep(input_folder, nrow(ranef_out)), rep('ranef', nrow(ranef_out)), rep(length(unique(WS_data$elkyear))))]
   
   ###### GFR model ---
-  gfr <- glmer(reformulate(c(base_covars, gfr_covars, ranef_covars), response = 'sample'),
-               family = binomial,
-               data = WS_data)
-  gfr_out <- broom.mixed::tidy(gfr)
+  gfr <- glmmTMB(reformulate(c(base_covars, gfr_covars, ranef_covars), response = 'sample'),
+                 family = binomial(),
+                 data = WS_data, doFit=F, weights=weight)
+  # Fix the sd of the first random term (1 | elkyear) to 10^6
+  gfr$parameters$theta[1] = log(1e3)
+  gfr$mapArg = list(theta=factor(c(NA,1:2)))
+  gfr_mod <- glmmTMB::fitTMB(gfr)
+  # Tidy
+  gfr_out <- broom.mixed::tidy(gfr_mod)
   # Remove extra covariates
-  gfr_out <- gfr_out[c(2:10),]
+  gfr_out <- gfr_out[c(2:9),]
   gfr_out <- as.data.table(gfr_out)
   gfr_out[, c('iteration', 'dates', 'type', 'numbelk') := .(rep(WS_data$iteration[1],nrow(gfr_out)), rep(input_folder, nrow(gfr_out)), rep('gfr', nrow(gfr_out)), rep(length(unique(WS_data$elkyear))))]
   
