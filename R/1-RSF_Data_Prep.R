@@ -12,7 +12,7 @@
 ##    c) Habitat-related: coniferous forest, mixedwood forest, roads
 
 ### Packages ----
-libs <- c('data.table', 'rgdal', 'sp', 'adehabitatHR', 'raster', 'lme4')
+libs <- c('data.table', 'rgdal', 'sp', 'adehabitatHR', 'raster', 'lme4', 'lubridate')
 lapply(libs, require, character.only = TRUE)
 
 ### Load data ----
@@ -46,16 +46,12 @@ saveRDS(dat, 'input/dat_cleaned.rds')
 
 # covariate rasters
 # landcover
-mixedwood <- raster("input/rasters/mixedwood_raster.tif")
-
-# density
-for(year in c('2004', '2005', '2008',
-              '2009', '2011', '2012', '2015', '2016')){
-  assign(paste('elk_density', year, sep='_'), raster(paste('input/rasters/elk_density_', paste(year, '.tif', sep=''), sep='')))
-}
+mixedwood <- raster("input/rasters/RMNP_mixedwood_ppn.tif")
+names(mixedwood) <- 'mixedwood'
 
 # distance to road
-distToRoad <- raster("input/rasters/distToRoad.tif")
+distToRoad <- raster("input/rasters/RMNP_dist_to_municipal_road.tif")
+names(distToRoad) <- 'road'
 
 
 ############################################################################################
@@ -69,45 +65,41 @@ distToRoad <- raster("input/rasters/distToRoad.tif")
 ## and the inverse (remaining 90days) becomes the within-sample data
 
 ### Subset dates for analysis ----
-
+# Remove dates outside of December and January
+dat <- dat[Month %in% c(1,12)]
+# Add julian day column
+dat[, 'Jday' := .(yday(DateTime))]
 # Specify dates for the iteration
-dates1 <- seq(as.Date('2020-11-01'), as.Date('2021-03-31'), by='day')
+# dates1 <- seq(as.Date('2020-12-01'), as.Date('2021-01-30'), by='day')
+dates1 <- c(seq(as.Date('2020-12-01'), as.Date('2020-12-31'), by='day'), as.Date('2021-01-01'), as.Date('2021-01-02'))
 dates1 <- format(dates1, format='%m-%d')
 
-dates2 <- c(seq(as.Date('2020-11-30'), as.Date('2021-03-31'), by='day'), seq(as.Date('2020-11-01'), as.Date('2020-11-29'), by='day'))
+# dates2 <- c(seq(as.Date('2020-11-30'), as.Date('2021-03-31'), by='day'), seq(as.Date('2020-11-01'), as.Date('2020-11-29'), by='day'))
+dates2 <- c(seq(as.Date('2020-12-30'), as.Date('2021-01-31'), by='day'), seq(as.Date('2020-12-01'), as.Date('2020-12-31'), by='day'), as.Date('2021-01-30'), as.Date('2021-01-31'))
 dates2 <- format(dates2, format='%m-%d')
-# Create columns for month/day
-dat[, 'MonthDay' := .(format(dat$DateTime, format="%m-%d"))]
 
 # Specify existing data table to compile results (if left off at a previous iteration)
-# 
-# mw_rd_RSFs <- readRDS('results/RSF_outputs/temp_mw_rd_RSFs.rds')
-# mw_density_RSFs <- readRDS('results/RSF_outputs/temp_mw_density_RSFs.rds')
-
-# Initialize data table to collect RSF results
-mw_rd_RSFs <- data.table()
-mw_density_RSFs <- data.table()
+mw_rd_RSFs <- readRDS('results/RSF_outputs/temp_mw_rd_RSFs.rds')
+# OR initialize data table to collect RSF results
+# mw_rd_RSFs <- data.table()
 
 # Subset observed data frame to new date range for:
 # out-of-sample data (withheld)
 
 for(day in 1:length(dates1)){
-  if(day <= 32 | day >= 62){
-    # out of sample data
-    datOOS <- dat[MonthDay >= dates1[day] & MonthDay <= dates2[day] ,]
-    # within-sample data
-    datWSD <- dat[MonthDay < dates1[day] | MonthDay > dates2[day] ,]
+  if(day < 32 & day > 2){
+    dat_OOS <- dat[Jday %in% c(seq(yday(as.Date(dates1[day], format='%m-%d')), 365, 1), seq(1, yday(as.Date(dates2[day], format='%m-%d')), 1))]
+    dat_WSD <- dat[!Jday %in% c(seq(yday(as.Date(dates1[day], format='%m-%d')), 365, 1), seq(1, yday(as.Date(dates2[day], format='%m-%d')), 1))]
   } else {
-    # out of sample data
-    datOOS <- dat[MonthDay >= dates1[day] | MonthDay <= dates2[day] ,]
-    # within-sample data
-    datWSD <- dat[MonthDay < dates1[day] & MonthDay > dates2[day] ,]
+    dat_OOS <- dat[Jday %in% c(seq(yday(as.Date(dates1[day], format='%m-%d')), yday(as.Date(dates2[day], format='%m-%d')), 1))]
+    dat_WSD <- dat[!Jday %in% c(seq(yday(as.Date(dates1[day], format='%m-%d')), yday(as.Date(dates2[day], format='%m-%d')), 1))]
   }
-  
   
   # Create output folder to collect data
   outputfolder <- paste(dates1[day], dates2[day], sep="_")
-  
+  # Create folder for MCPs
+  dir.create(path = paste("input/MCPs/", paste(outputfolder, '/', sep=''), sep=''))
+
   # Print current output folder
   print(outputfolder)
   
@@ -116,7 +108,7 @@ for(day in 1:length(dates1)){
   if(outputfolder %in% done_list){
     next
   }
-  
+
   ############################################################################################
   ############################################################################################
   ## PART 2: CREATE MCP HOME RANGES FOR WITHIN-SAMPLE AND OUT-OF-SAMPLE DATA ##
@@ -131,22 +123,17 @@ for(day in 1:length(dates1)){
     # Initialize data table and list for mcps
     used <- data.table()
     mcp_list <- list()
-    if(j=='OOS'){
-      dat_split <- datOOS
-    }else{
-      dat_split=datWSD
-    }
-    eys <- unique(dat_split$elkyear)
+    
+    dat_split <- get(paste('dat', j, sep='_'))
+
     # Cycle through elk years
-    for (i in eys) {
+    for (i in unique(dat_split$elkyear)) {
       sub_dat <- dat_split[elkyear==i]
       year_sub <- sub_dat$intyear[1]
       # Exclude elk-years with fewer than 5 points (mcp function won't work)
       if(nrow(sub_dat) < 5){
         next
       }
-      # Get NDVI rasters corresponding to the elkyear
-      density_sub <- get(paste('elk_density_', year_sub, sep=''))
       # Create spatial points data frame and mcp
       sp_sub <- SpatialPoints(coords=sub_dat[,c('X','Y')], proj4string =CRS("+init=epsg:26914"))
       mcp_sub <- mcp(sp_sub)
@@ -155,22 +142,18 @@ for(day in 1:length(dates1)){
       mcp_sub@data$year <- year_sub
       mcp_sub@data$npoints <- nrow(sub_dat)
       # Extract raster values
-      density_pts <- extract(density_sub, sp_sub)
       mixedwood_pts <- extract(mixedwood, sp_sub)
       road_pts <- extract(distToRoad, sp_sub)
-      # Skip to next elk if density all NAs
-      if(all(is.na(density_pts))){
-        next
-      }
       # Compile data table
-      sub_used <- data.table(elkyear = rep(sub_dat$elkyear[1], length(mixedwood_pts)),
-                             year = rep(year_sub, length(mixedwood_pts)), density = density_pts, 
-                             mixedwood = mixedwood_pts, road = road_pts, npoints = nrow(sub_dat), sample = rep(1, length(mixedwood_pts)))
+      sub_used <- data.table(elkyear = sub_dat$elkyear[1], year = year_sub, mixedwood = mixedwood_pts, road = road_pts, npoints = nrow(sub_dat), sample = 1)
       used <- rbind(used, sub_used)
       mcp_list <- c(mcp_list, mcp_sub)
+      # Save MCPs
+      dir.create(path = paste("input/MCPs/", paste(outputfolder, paste(i, '/', sep=''), sep='/'), sep=''))
+      saveRDS(mcp_sub, paste("input/MCPs/", paste(outputfolder, paste(i, paste(j, 'mcp.rds', sep='_'), sep='/'), sep='/'), sep=''))
     }
     assign(paste('used', j, sep=''), used)
-    assign(paste('mcp_list', j, sep=''), mcp_list)
+    assign(paste('mcp_list', j, sep='_'), mcp_list)
   }
   
   
@@ -190,11 +173,9 @@ for(day in 1:length(dates1)){
     # Initialize data tables
     avail <- data.table()
     HRmeans <- data.table()
-    if(j=='OOS'){
-      mcp_list <- mcp_listOOS
-    }else{
-      mcp_list <- mcp_listWSD
-    }
+
+    mcp_list <- get(paste('mcp_list', j, sep='_'))
+    
     for(i in mcp_list){
       
       # tryCatch({
@@ -203,33 +184,27 @@ for(day in 1:length(dates1)){
       # Sample random points
       sp_sub<-spsample(i,n=i@data$npoints*10,"random")
       year_sub <- i@data$year
-      # Get NDVI rasters corresponding to the elkyear
-      density_sub <- get(paste('elk_density_', year_sub, sep=''))
       # Extract raster values at points
-      density_pts <- extract(density_sub, sp_sub)
       mixedwood_pts <- extract(mixedwood, sp_sub)
       road_pts <- extract(distToRoad, sp_sub)
       # Extract raster value means
-      density_mean <- extract(density_sub, i, method='simple', fun=mean, na.rm=TRUE)
       mixedwood_mean <- extract(mixedwood, i, method='simple', fun=mean, na.rm=TRUE)
       road_mean <- extract(distToRoad, i, method='simple', fun=mean, na.rm=TRUE)
       
-      
       # Skip any elk-years where all NDVI=NA and add to a list
-      if(any(is.nan(c(density_mean, mixedwood_mean, road_mean,
-                      density_pts, mixedwood_pts, road_pts)))==TRUE){
+      if(any(is.nan(c(mixedwood_mean, road_mean,
+                      mixedwood_pts, road_pts)))==TRUE){
         skips <- c(skips, i@data$id) 
         next
       }
       
       # Compile data table of means
-      sub_means <- data.table(elkyear = i@data$id, year = i@data$year,
-                              mean_density = density_mean, mean_mixedwood = mixedwood_mean, mean_road = road_mean)
+      sub_means <- data.table(elkyear = i@data$id, year = i@data$year, mean_mixedwood = mixedwood_mean, mean_road = road_mean)
       HRmeans <- rbind(HRmeans, sub_means)
       
       # Compile data table of available points
       sub_avail <- data.table(elkyear = rep(i@data$id, i@data$npoints*10), year = rep(i@data$year, i@data$npoints*10), 
-                              mixedwood = mixedwood_pts, density = density_pts, road = road_pts, npoints = i@data$npoints, sample = rep(0, i@data$npoints*10))
+                              mixedwood = mixedwood_pts, road = road_pts, npoints = i@data$npoints, sample = rep(0, i@data$npoints*10))
       avail <- rbind(avail, sub_avail)
       
       # }, warning=function(w){cat("WARNING:", conditionMessage(w), "\n")})
@@ -242,8 +217,8 @@ for(day in 1:length(dates1)){
   }
   
   # Rename columns
-  colnames(HRmeansOOS) <- c('elkyear', 'year', 'mean_density', 'mean_mixedwood', 'mean_road')
-  colnames(HRmeansWSD) <- c('elkyear', 'year', 'mean_density', 'mean_mixedwood', 'mean_road')
+  colnames(HRmeansOOS) <- c('elkyear', 'year', 'mean_mixedwood', 'mean_road')
+  colnames(HRmeansWSD) <- c('elkyear', 'year', 'mean_mixedwood', 'mean_road')
   
   # Remove all elkyears from the used data if NDVI data was all NA in home range
   if(length(skips) > 0){
@@ -262,9 +237,9 @@ for(day in 1:length(dates1)){
   RSF_datOOS <- merge(RSF_datOOS, HRmeansOOS, by=c('year', 'elkyear'))
   RSF_datWSD <- merge(RSF_datWSD, HRmeansWSD, by=c('year', 'elkyear'))
   
-  # Log transform distances, add iteration for RSFs
-  RSF_datOOS[, c('mean_road', 'road', 'iteration') := .(log(RSF_datOOS$mean_road+1), log(RSF_datOOS$road+1), rep(day, nrow(RSF_datOOS)))]
-  RSF_datWSD[, c('mean_road', 'road', 'iteration') := .(log(RSF_datWSD$mean_road+1), log(RSF_datWSD$road+1), rep(day, nrow(RSF_datWSD)))]
+  # Add iteration col
+  RSF_datOOS[, 'iteration' := .(day)]
+  RSF_datWSD[, 'iteration' := .(day)]
   
   ############################################################################################
   ############################################################################################
@@ -282,21 +257,12 @@ for(day in 1:length(dates1)){
   
   ## --- Using out-of-sample data (i.e. to be predicted):
   ## METHOD 4: Individual RSF
-  
-  mw_rd_covars <- data.table(model = rep('mw_rd',5), covars=c('road', 'mixedwood'))
-  mw_density_covars <- data.table(model = rep('mw_density',3), covars=c('density', 'mixedwood'))
-  covars_list <- rbind(mw_rd_covars, mw_density_covars)
-  
-  for(k in unique(covars_list$model)){
-    
+
     ##################################################################################
     ##### METHOD 3: WITHIN-SAMPLE Individual RSF using available points from within HR
-    
-    covars_sub <- covars_list[model==k]
-    covars <- covars_sub$covars
-    names_covars <- covars_sub$model[1]
+
+    covars <- c('I(log(road+1))', 'mixedwood')
     id_WSD_out <- data.table()
-    
     for(i in unique(RSF_datWSD$elkyear)){
       sub_RSF_dat <- RSF_datWSD[elkyear==i]
       id_RSF <- glm(reformulate(covars, response = 'sample'),
@@ -309,19 +275,18 @@ for(day in 1:length(dates1)){
       }
       # Remove intercept and add elkyear
       id_out <- id_out[!c(term=='(Intercept)')]
-      id_out[, c('elkyear', 'numb_pts') := .(rep(i, nrow(id_out)), rep(sub_RSF_dat[1]$npoints, nrow(id_out)))]
+      id_out[, c('elkyear', 'numb_pts') := .(i, sub_RSF_dat[1]$npoints)]
       # Bind
       id_WSD_out <- rbind(id_WSD_out, id_out)
     }
-    
+
     id_WSD_out <- merge(id_WSD_out, HRmeansWSD, by='elkyear')
-    id_WSD_out[, c('iteration', 'dates', 'type') := .(rep(day, nrow(id_WSD_out)), rep(outputfolder, nrow(id_WSD_out)), rep('WSD', nrow(id_WSD_out)))]
-    
+    id_WSD_out[, c('iteration', 'dates', 'type') := .(day, outputfolder, 'WSD')]
+
     ###############################################################################
     ## METHOD 4: OUT-OF-SAMPLE Individual RSF using available points from within HR
-    
+
     id_OOS_out <- data.table()
-    
     for(i in unique(RSF_datOOS$elkyear)){
       sub_RSF_dat <- RSF_datOOS[elkyear==i]
       id_RSF <- glm(reformulate(covars, response = 'sample'),
@@ -334,29 +299,26 @@ for(day in 1:length(dates1)){
       }
       # Remove intercept and add elkyear
       id_out <- id_out[!c(term=='(Intercept)')]
-      id_out[, c('elkyear', 'numb_pts') := .(rep(i, nrow(id_out)), rep(sub_RSF_dat[1]$npoints, nrow(id_out)))]
+      id_out[, c('elkyear', 'numb_pts') := .(i, sub_RSF_dat[1]$npoints)]
       # Bind
       id_OOS_out <- rbind(id_OOS_out, id_out)
     }
-    
+
     id_OOS_out <- merge(id_OOS_out, HRmeansOOS, by='elkyear')
-    id_OOS_out[, c('iteration', 'dates', 'type') := .(rep(day, nrow(id_OOS_out)), rep(outputfolder, nrow(id_OOS_out)), rep('OOS', nrow(id_OOS_out)))]
-    
+    id_OOS_out[, c('iteration', 'dates', 'type') := .(day, outputfolder, 'OOS')]
+
     ## Combine all models into a data.table
-    outputs <- rbind(id_WSD_out, id_OOS_out)
-    
-    assign(paste(names_covars, 'output', sep='_'), outputs)
-    
-  }
-  
+    mw_rd_out <- rbind(id_WSD_out, id_OOS_out)
+    mw_rd_RSFs <- rbind(mw_rd_RSFs, mw_rd_out)
+
+
   ############################################################################################
   ############################################################################################
   ## PART 7: SAVE ITERATION RESULTS ##
   ############################################################################################
   ############################################################################################
-  
-  mw_rd_RSFs <- rbind(mw_rd_RSFs, mw_rd_output)
-  mw_density_RSFs <- rbind(mw_density_RSFs, mw_density_output)
+
+
   
   ## Save each model output in a separate folder corresponding to the date range
   ## Date range format should be: 'results/RSF_outputs/MM-DD_MM-DD'
@@ -373,11 +335,9 @@ for(day in 1:length(dates1)){
   
   # Saves a temporary copy of the covariate outputs
   saveRDS(mw_rd_RSFs, 'results/RSF_outputs/temp_mw_rd_RSFs.rds')
-  saveRDS(mw_density_RSFs, 'results/RSF_outputs/temp_mw_density_RSFs.rds')
-  
+
 }
 
 saveRDS(mw_rd_RSFs, 'results/RSF_outputs/mw_rd_RSFs.rds')
-saveRDS(mw_density_RSFs, 'results/RSF_outputs/mw_density_RSFs.rds')
 
 
