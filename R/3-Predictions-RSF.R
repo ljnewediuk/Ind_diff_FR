@@ -6,6 +6,10 @@
 ############################################################################################
 ## Loops through all elk-years from OOSData with standard errors less than 30
 
+### Packages ----
+libs <- c('data.table', 'rgdal', 'sp', 'adehabitatHR', 'raster', 'lme4', 'survival', 'glmmTMB', 'tidyverse')
+lapply(libs, require, character.only = TRUE)
+
 # landcover
 mixedwood <- raster("input/rasters/RMNP_mixedwood_ppn.tif")
 names(mixedwood) <- 'mixedwood'
@@ -82,7 +86,7 @@ for(row in 1:nrow(pull_list)){
   }
   
   ### 5 - Calculate correlation with OOS model
-  for(mod_type in c('gfr', 'ranef', 'OOS', 'WS')){
+  for(mod_type in c('gfr', 'ranef', 'WS')){
     corr_r2 <- summary(lm(get(paste(mod_type, 'pred', sep='_')) ~ OOS_pred))$adj.r.squared
     assign(paste(mod_type, 'corr', sep='_'), corr_r2)
   }
@@ -99,4 +103,12 @@ for(row in 1:nrow(pull_list)){
   # Save a temporary copy
   saveRDS(correlation_data, 'results/prediction_outputs/temp_correlations.rds')
   
+  # Remove old objects to prevent lagging effects
+  rm(gfr_mod, ranef_mod, OOS_mod, WS_mod, id_mcp, mixedwood_crop, road_crop, correlations_individual, new_dat)
 }
+
+### 6 - Save final copy of results
+saveRDS(correlation_data, 'results/prediction_outputs/correlations.rds')
+
+
+
