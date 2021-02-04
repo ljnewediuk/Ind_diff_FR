@@ -1,6 +1,6 @@
 
 ### Packages ----
-libs <- c('data.table', 'ggplot2', 'cowplot', 'grid', 'gridExtra')
+libs <- c('data.table', 'ggplot2', 'cowplot', 'grid', 'gridExtra', 'dplyr')
 lapply(libs, require, character.only = TRUE)
 
 ### Load data ----
@@ -55,8 +55,22 @@ for (input_folder in folder_list){
 # C) Individual model outputs
 covariates <- readRDS('results/RSF_outputs/mw_rd_RSFs.rds')
 
+# Remove iterations with less than one week of data during the iteration (84 = 7 d x 12 pts)
+covariates <- covariates %>% filter(numb_pts >= 84)
 # Use only individual points from OOS samples
 covariates <- covariates[type=='OOS']
+
+# Summarize individuals
+covariates <- covariates %>% select(c('elkyear', 'term', 'estimate', 'mean_mixedwood', 'mean_road')) %>% 
+  group_by(elkyear, term) %>% summarize(mean_est=mean(estimate, na.rm=T), 
+     se_est=sd(estimate, na.rm=T)/sqrt(length(estimate)), 
+     mean_mw=mean(mean_mixedwood, na.rm=T), mean_rd=mean(mean_road, na.rm=T),
+     se_mw=sd(mean_mixedwood, na.rm=T)/sqrt(length(mean_mixedwood)), se_rd=sd(mean_road, na.rm=T)/sqrt(length(mean_road)))   
+
+covariates <- covariates %>% mutate(upper_est=mean_est+(se_est*1.96), lower_est=mean_est-(se_est*1.96),
+                                    upper_rd=(mean_rd+(se_rd*1.96))/1000, lower_rd=(mean_rd-(se_rd*1.96))/1000,
+                                    upper_mw=mean_mw+(se_mw*1.96), lower_mw=mean_mw-(se_mw*1.96),
+                                    mean_rd=mean_rd/1000)
 
 ######################################################
 ### PART 1: DENSITY PLOT (N POINTS PER INDIVIDUAL) ###
@@ -81,10 +95,12 @@ ggplot(Npoints_id, aes(x=N)) + geom_density(fill='#FF4449', alpha=0.5) +
 
 # tiff('figures/suppA1.tiff', width = 9.5, height = 9.5, units = 'in', res = 300)
 
-ggplot(covariates[term=='mixedwood'], aes(x=mean_road/1000, y=estimate)) + geom_point(alpha=0.8, colour='grey') + 
+ggplot(covariates[covariates$term=='mixedwood',], aes(x=mean_rd, y=mean_est)) + geom_point(alpha=0.8, colour='grey') + geom_text(aes(label=elkyear)) +
+  geom_errorbar(aes(ymin=lower_est, ymax=upper_est), colour='grey', alpha=0.8, width=0.3) +
+  geom_errorbarh(aes(xmin=lower_rd, xmax=upper_rd), colour='grey', alpha=0.8, height=0.2) +
   geom_smooth(method='lm', colour='black') +
   geom_hline(yintercept=0, size=0.5, colour='black', alpha=0.5) +
-  annotate('text', x=2.5, y=-3.65, label=paste('R^2 ==', round(summary(lm(covariates[term=='mixedwood']$estimate~covariates[term=='mixedwood']$mean_road))$adj.r.squared,2)), parse=T, size=5) +
+  annotate('text', x=1.5, y=-2, label=paste('R^2 ==', round(summary(lm(covariates[covariates$term=='mixedwood',]$mean_est~covariates[covariates$term=='mixedwood',]$mean_rd))$adj.r.squared,2)), parse=T, size=5) +
   theme(panel.background = element_rect(fill='white'), axis.line = element_line(colour='black'), axis.text = element_text(size=15),
         axis.title.x = element_text(size=18, vjust=-3), axis.title.y = element_text(size=18, vjust=5), plot.margin = unit(c(1,1,1,1),'cm'),
         strip.text = element_text(size=15), panel.spacing = unit(1,'cm')) +
@@ -98,10 +114,12 @@ ggplot(covariates[term=='mixedwood'], aes(x=mean_road/1000, y=estimate)) + geom_
 
 # tiff('figures/suppA2.tiff', width = 9.5, height = 9.5, units = 'in', res = 300)
 
-ggplot(covariates[term=='road'], aes(x=mean_mixedwood, y=estimate)) + geom_point(alpha=0.8, colour='grey') + 
+ggplot(covariates[covariates$term=='I(log(road + 1))',], aes(x=mean_mw, y=mean_est)) + geom_point(alpha=0.8, colour='grey') + geom_text(aes(label=elkyear)) +
+  geom_errorbar(aes(ymin=lower_est, ymax=upper_est), colour='grey', alpha=0.8, width=0.02) +
+  geom_errorbarh(aes(xmin=lower_mw, xmax=upper_mw), colour='grey', alpha=0.8, height=0.2) +
   geom_smooth(method='lm', colour='black') +
   geom_hline(yintercept=0, size=0.5, colour='black', alpha=0.5) +
-  annotate('text', x=0.2, y=-18, label=paste('R^2 ==', round(summary(lm(covariates[term=='road']$estimate~covariates[term=='road']$mean_mixedwood))$adj.r.squared,2)), parse=T, size=5) +
+  annotate('text', x=0.3, y=-6, label=paste('R^2 ==', round(summary(lm(covariates[covariates$term=='I(log(road + 1))',]$mean_est~covariates[covariates$term=='I(log(road + 1))',]$mean_mw))$adj.r.squared,2)), parse=T, size=5) +
   theme(panel.background = element_rect(fill='white'), axis.line = element_line(colour='black'), axis.text = element_text(size=15),
         axis.title.x = element_text(size=18, vjust=-3), axis.title.y = element_text(size=18, vjust=5), plot.margin = unit(c(1,1,1,1),'cm'),
         strip.text = element_text(size=15), panel.spacing = unit(1,'cm')) +
