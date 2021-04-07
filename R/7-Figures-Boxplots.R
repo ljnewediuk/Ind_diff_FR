@@ -1,8 +1,8 @@
-############################################################################################
-############################################################################################
-## 3 - BOXPLOT FIGURES COMPARING R-SQUARED VALUES
-############################################################################################
-############################################################################################
+#####################################################
+#####################################################
+## 7 - BOXPLOT FIGURES COMPARING R-SQUARED VALUES ##
+####################################################
+####################################################
 ## Returns:
 ## Boxplot showing distributions of r-squareds for all models and 
 ## individual r-squareds for the best and worst models of each individual
@@ -12,12 +12,11 @@
 libs <- c('data.table', 'ggplot2', 'cowplot', 'dplyr', 'DescTools')
 lapply(libs, require, character.only = TRUE)
 
-### Load elkyears with fewer than 750 points ----
-# Npoints_750<- readRDS('input/exclusion_elk.rds')
-
 ### Load data from RSF outputs folder ----
 all_correlations <- readRDS('results/prediction_outputs/correlations.rds')
 
+# Remove outlier iterations
+all_correlations <- all_correlations[!(elkyear==22 & dates=='01-02_01-31' | elkyear==55 & dates=='01-02_01-31')]
 
 # Calculate difference in all combinations of model comparisons for each iteration
 # Individual & ranef model
@@ -33,7 +32,7 @@ for (i in unique(all_correlations$elkyear)){
   sub_corrs <- subset(all_correlations, elkyear==i)
   
   for(model in c('WS_corr', 'ranef_corr', 'gfr_corr')){
-    sub_model <- unlist(sub_corrs %>% select(model))
+    sub_model <- unlist(sub_corrs %>% dplyr::select(model))
     if(length(sub_model)<6){
       next
     }
@@ -69,33 +68,31 @@ supp_correlations <- supp_correlations[order(elkyear)]
 melt_correlations <- melt(all_correlations, measure.vars=c('WS_corr', 'ranef_corr', 'gfr_corr'))
 
 # Make data.table for individual correlations
-corr_indivs <- melt_correlations %>% group_by(elkyear, variable) %>% summarize(mean=mean(value, na.rm=T), 
-                                                                               lower=mean(value, na.rm=T)-(sd(value, na.rm=T)/sqrt(length(value))*1.96),
-                                                                               upper=mean(value, na.rm=T)+(sd(value, na.rm=T)/sqrt(length(value))*1.96))
+corr_indivs <- melt_correlations %>% group_by(elkyear, variable) %>% 
+  summarize(mean=mean(value, na.rm=T), 
+  lower=mean(value, na.rm=T)-(sd(value, na.rm=T)/sqrt(length(value))*1.96),
+  upper=mean(value, na.rm=T)+(sd(value, na.rm=T)/sqrt(length(value))*1.96)) %>%
+  mutate(elkyear=factor(elkyear))
 
-# tiff('figures/fig2.tiff', width = 7, height = 6, units = 'in', res = 300)
+# tiff('figures/fig2.tiff', width = 5, height = 5, units = 'in', res = 300)
 
 ggplot(melt_correlations, aes(x=variable, y=value, col=variable)) + 
   # Add zero line at median of individual level model
-  geom_hline(yintercept=median(melt_correlations[variable=='individual']$value), col='#000000', linetype='dashed') +
   # Add boxplots
-  geom_boxplot(notch=TRUE, aes(fill=variable), width=0.4, colour='black', alpha=0.5) + 
+  geom_boxplot(notch=TRUE, fill='#C0C0C0', width=0.3, colour='#000000') + 
+  # geom_errorbar(data=corr_indivs, aes(x=variable, y=mean, group=elkyear, ymin=lower, ymax=upper), colour='#00000050', width=.5, position=position_dodge(width=0.5)) +
+  geom_hline(yintercept=median(melt_correlations[variable=='individual']$value), col='#000000', linetype='dashed') +
+  # geom_point(data=corr_indivs, aes(x=variable, y=mean, group=elkyear, fill=elkyear, alpha=elkyear), colour='#000000', position=position_dodge(width=0.5), size=3, pch=21) +
+  # geom_point(data=corr_indivs[corr_indivs$elkyear  %in% c(2,8,10,34,35,47),], aes(x=variable, y=mean, group=elkyear, fill=elkyear), colour='black', position=position_dodge(width=0.6), size=2, pch=21) +
+  scale_fill_manual(values=c('#440154', '#472D7B', '#3B528B', rep('#C0C0C0',7), '#27AD81', '#5DC863', rep('#C0C0C0', 4), '#AADC32', '#C0C0C0')) +
+  scale_alpha_manual(values=c(rep(1,3), rep(.5,7), rep(1,2), rep(.5, 4), 1, .5)) +
   # Set boxpot colours
-  scale_fill_manual(values=c("#65ABF3", "#DED9DC", "#DED9DC", "#DED9DC")) + 
-  scale_x_discrete(labels=c('individual' = 'Individual', 'no_FR' = 'Base',
-                            'ranef' = 'Ran. Eff.', 'gfr' = 'GFR')) +
+  scale_x_discrete(labels=c('Individual', 'Ran. Eff.', 'GFR')) +
   # Theme
   theme(panel.background = element_rect(fill='white'), panel.border = element_rect(colour='black', fill=NA), 
         legend.position='none', axis.text = element_text(size=12, colour='black'), axis.title.y = element_text(size=15, colour='black', vjust=2.5)) +
-  ylab(expression(paste('Correlation with individual level model (R'^2, ')'))) + xlab('') +
-  # Optionally add points to show worst/best models
-  # geom_point(data=worstmodelscores, aes(x=worst, y=worst_score), col='black', fill='white', position=position_jitter(width=.1), pch=21, alpha=0.5) +
-  # geom_point(data=bestmodelscores, aes(x=best, y=best_score), col='black', fill='black', position=position_jitter(width=.1), pch=24, alpha=0.5)\
-  # Add individuals
-  geom_point(data=corr_indivs, aes(x=variable, y=mean, group=elkyear), position=position_dodge(width=0.5)) +
-  geom_errorbar(data=corr_indivs, aes(x=variable, y=mean, group=elkyear, ymin=lower, ymax=upper), width=2, position=position_dodge(width=0.5)) +
-  geom_smooth(data=corr_indivs, aes(x=variable, y=mean, group=elkyear), se=F, method='lm', colour='#C0C0C075')
-  
+  ylab(expression(paste('Correlation with individual level model (R'^2, ')'))) + xlab('')
+
 # Save mean correlations by elk year
 saveRDS(meanByID, 'input/mean_correlations.rds')
 

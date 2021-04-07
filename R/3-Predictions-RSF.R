@@ -1,23 +1,26 @@
-
-############################################################################################
-############################################################################################
-## PART 3: COMPARE MODELS ##
-############################################################################################
-############################################################################################
-## Loops through all elk-years from OOSData with standard errors less than 30
+#####################################################
+#####################################################
+## 3 - COMPARE MODELS (GEOGRAPHIC RSS PREDICTIONS) ##
+#####################################################
+#####################################################
+## Loops through all elk-years from OOSData with 
+## standard errors less than 30
 
 ### Packages ----
 libs <- c('data.table', 'rgdal', 'sp', 'adehabitatHR', 'raster', 'lme4', 'survival', 'glmmTMB', 'tidyverse')
 lapply(libs, require, character.only = TRUE)
 
-# landcover
-mixedwood <- raster("input/rasters/RMNP_mixedwood_ppn.tif")
+# Import raster data into directory
+system("mkdir ~/Documents/R-Projects/individual_fr/rasters/")
+system("cp ~/Documents/Spatial*Data/Manitoba*Data/distance*to/RMNP_dist_to_municipal_road.tif ~/Documents/R-Projects/individual_fr/rasters/")
+system("cp ~/Documents/Spatial*Data/Manitoba*Data/landcover/mli*data*2004-2006/RMNP_mixedwood_ppn.tif ~/Documents/R-Projects/individual_fr/rasters/")
+# Read landcover
+mixedwood <- raster("rasters/RMNP_mixedwood_ppn.tif")
 names(mixedwood) <- 'mixedwood'
-# distance to road
-distToRoad <- raster("input/rasters/RMNP_dist_to_municipal_road.tif")
+# Read road data
+distToRoad <- raster("rasters/RMNP_dist_to_municipal_road.tif")
 names(distToRoad) <- 'road'
-# Read individual model outputs
-covariates <- readRDS('results/RSF_outputs/mw_rd_RSFs.rds')
+
 # Check which individual iterations have >= 1 week of data and summarize by year and date
 pull_list <- covariates %>% filter(numb_pts >= 84) %>% group_by(elkyear, iteration, dates, numb_pts, type) %>% summarise()
 pull_list <- pull_list[pull_list$type=='OOS',]

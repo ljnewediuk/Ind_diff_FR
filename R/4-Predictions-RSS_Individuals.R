@@ -1,10 +1,10 @@
-
-############################################################################################
-############################################################################################
-## PART 3: COMPARE MODELS ##
-############################################################################################
-############################################################################################
-## Loops through all elk-years from OOSData with standard errors less than 30
+##############################################
+##############################################
+## 4 - COMPARE MODELS (RSS FOR INDIVIDUALS) ##
+##############################################
+##############################################
+## Loops through all elk-years from OOSData 
+## with standard errors less than 30
 
 ### Packages ----
 libs <- c('data.table', 'rgdal', 'sp', 'adehabitatHR', 'raster', 'lme4', 'survival', 'glmmTMB', 'tidyverse', 'Metrics')
@@ -16,6 +16,9 @@ names(mixedwood) <- 'mixedwood'
 # distance to road
 distToRoad <- raster("input/rasters/RMNP_dist_to_municipal_road.tif")
 names(distToRoad) <- 'road'
+# Remove raster data
+system("rm -rf ~/Documents/R-Projects/individual_fr/rasters/")
+
 # Read individual model outputs
 covariates <- readRDS('results/RSF_outputs/mw_rd_RSFs.rds')
 # Check which individual iterations have >= 1 week of data and summarize by year and date
@@ -143,7 +146,7 @@ for(row in 1:nrow(pull_list)){
                                 dates = pull_list[row,]$dates,
                                 numb_points = pull_list[row,]$numb_pts,
                                 gfr_mixedwood=gfr_mixedwood_rmse, ranef_mixedwood=ranef_mixedwood_rmse,
-                                gfr_road=gfr_mixedwood_rmse, ranef_road=ranef_mixedwood_rmse)
+                                gfr_road=gfr_road_rmse, ranef_road=ranef_road_rmse)
   # Bind with main table
   rmse_data <- rbind(rmse_data, rmse_individual)
   
@@ -154,7 +157,7 @@ for(row in 1:nrow(pull_list)){
   # Remove old objects to prevent lagging effects
   rm(gfr_mod, ranef_mod, OOS_mod, WS_mod, id_mcp, mixedwood_crop, road_crop, x1_mixedwood, x1_road, x2,
      ranef_mixedwood_rmse, ranef_mixedwood_rss, gfr_mixedwood_rmse, gfr_mixedwood_rss,
-     ranef_road_rmse, ranef_road_rss, gfr_road_rmse, gfr_road_rss, OOS_road_rmse, OSS_road_rss)
+     ranef_road_rmse, ranef_road_rss, gfr_road_rmse, gfr_road_rss, OSS_road_rss)
 }
 
 ### 6 - Save final copy of results
