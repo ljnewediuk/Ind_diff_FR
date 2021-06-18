@@ -31,7 +31,9 @@ prepped_dat <- dat %>%
   mutate(elkblock = paste(elkyear, block, sep = '_')) %>%
   # Ungroup 
   ungroup() %>%
-  dplyr::select(- c(uid, ID))
+  dplyr::select(- c(uid, ID)) %>%
+  #  Remove elk from 2006 and 2007
+  filter(! year %in% c(2006, 2007))
 
 # Save prepped data
 saveRDS(prepped_dat, 'input/prepped_data.rds')
