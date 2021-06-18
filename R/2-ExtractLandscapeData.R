@@ -38,7 +38,7 @@ for(i in unique(dat$elkblock)) {
   sub_dat <- dat %>%
     filter(elkblock == i) %>%
     # Add column for case = T
-    mutate(case = T)
+    mutate(case = 1)
   
   # Convert to Spatial Points and get 100% MCP
   sub_sp <- as(sub_dat, 'Spatial')
@@ -63,7 +63,7 @@ for(i in unique(dat$elkblock)) {
            block = unique(sub_dat$block),
            points_in_block = unique(sub_dat$points_in_block),
            elkblock = unique(sub_dat$elkblock),
-           case = F) %>%
+           case = 0) %>%
     # Convert to sf
     st_as_sf(coords = c('X', 'Y'), crs = st_crs(sub_dat)) %>%
     # Bind to observed data
@@ -86,3 +86,6 @@ for(i in unique(dat$elkblock)) {
 
 # Remove raster data
 system("rm -rf ~/Documents/R-Projects/individual_fr/rasters/")
+
+# Save rsf data
+saveRDS(rsf_dat, 'output/rsf_data.rds')
