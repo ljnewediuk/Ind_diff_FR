@@ -54,38 +54,48 @@ FR_dat <- left_join(indiv_mods, hr_covs)
 
 # Plot ß mixedwood by mean HR road distance
 ggplot() +
+  geom_hline(yintercept = 0, linetype = 'dashed', colour = '#000000') +
   geom_point(data = FR_dat, 
              aes(x = roaddist_km_hr, y = mixedwood_b), 
-             col = 'blue',
-             alpha = 0.3) +
+             col = '#46454a', alpha = 0.6) +
   geom_errorbar(data = FR_dat,
                 aes(x = roaddist_km_hr,
                     ymin = mixedwood_b - mixedwood_se,
                     ymax = mixedwood_b + mixedwood_se),
-                width = 0.2,
-                col = 'blue',
-                alpha = 0.3) +
-  geom_smooth(data = FR_dat, 
-              aes(x = roaddist_km_hr, y = mixedwood_b), 
-              col = 'blue',
-              method = 'lm')
+                width = 0.2, col = '#46454a', alpha = 0.6) +
+  geom_smooth(data = FR_dat,
+              aes(x = roaddist_km_hr, y = mixedwood_b),
+              col = '#46454a', method = 'lm') +
+  theme(panel.background = element_rect(fill = 'white', colour = 'black'),
+        plot.margin = unit(c(0.5, 0.5, 1, 1), 'cm'),
+        panel.grid = element_line(colour = '#00000020'),
+        axis.text = element_text(size = 18, colour = '#000000'),
+        axis.title.y = element_text(size = 18, colour = '#000000', vjust = 4),
+        axis.title.x = element_text(size = 18, colour = '#000000', vjust = -4)) +
+  ylab('ß coefficient mixedwood forest') + 
+  xlab('Mean distance to road in home range')
 
 # Plot ß road distance by mean HR mixedwood proportion
 ggplot() +
+  geom_hline(yintercept = 0, linetype = 'dashed', colour = '#000000') +
   geom_point(data = FR_dat, 
              aes(x = mixedwood_hr, y = roaddist_b), 
-             col = 'red',
-             alpha = 0.3) +
+             col = '#46454a', alpha = 0.3) +
   geom_errorbar(data = FR_dat,
                 aes(x = mixedwood_hr,
                     ymin = roaddist_b - roaddist_se,
                     ymax = roaddist_b + roaddist_se),
-                width = 0.02,
-                col = 'red',
-                alpha = 0.3) +
+                width = 0.02, col = '#46454a', alpha = 0.3) +
   geom_smooth(data = FR_dat, 
               aes(x = mixedwood_hr, y = roaddist_b), 
-              col = 'red',
-              method = 'lm')
+              col = '#46454a', method = 'lm') +
+  theme(panel.background = element_rect(fill = 'white', colour = 'black'),
+        plot.margin = unit(c(0.5, 0.5, 1, 1), 'cm'),
+        panel.grid = element_line(colour = '#00000020'),
+        axis.text = element_text(size = 18, colour = '#000000'),
+        axis.title.y = element_text(size = 18, colour = '#000000', vjust = 4),
+        axis.title.x = element_text(size = 18, colour = '#000000', vjust = -4)) +
+  ylab('ß coefficient distance to road') + 
+  xlab('Proportional cover mixedwood forest in home range')
 
 
