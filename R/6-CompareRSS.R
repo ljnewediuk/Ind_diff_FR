@@ -1,111 +1,91 @@
 
 library(tidyverse)
-library(lme4)
-library(glmmTMB)
 
-# Load RSS results
-rss_dat <- readRDS('output/rss_results.rds')
+# Start dataframe to summarize RSS for each model by elkyear
+rss_summ <- data.frame()
+# Start dataframe to summarize variance in RSS for each model by elkyear
+var_summ <- data.frame()
 
-rss_gfr <- rss_dat %>%
-  filter(model == 'gfr')
+for(habitat in c('Road', 'Mixed_forest')) {
 
-rss_ranef <- rss_dat %>%
-  filter(model == 'ranef')
-
-rss_test <- rss_dat %>%
-  filter(model == 'test')
-
-rss_train <- rss_dat %>%
-  filter(model == 'train')
-
-rss_zscores <- data.frame()
-
+  # Get corresponding condition (use one comparison for each covariate)
+  cond_type <- ifelse(habitat == 'Road', 'x1-mw0-rd0.05_x2-mw0-rd0.50',
+                      'x1-mw1-rd0.95_x2-mw0-rd0.95')
+  
+  # Load RSS results and filter by condition
+  rss_dat <- readRDS('output/rss_results_predict.rds') %>%
+    filter(cond == cond_type)
+  # Load home range covers
+  hr_covs <- readRDS('output/hr_covers.rds')
+  
+  # Start dataframe to collect z-scores
+  rss_zscores <- data.frame()
+  # Start dataframe to collect variance
+  rss_vars <- data.frame()
+  
+  # Loop through individuals
   for(indiv in unique(rss_dat$elkyear)) {
-  
-  rss_indiv_test <- rss_dat %>%
-    filter(elkyear == indiv & model == 'test')
-  rss_indiv_train <- rss_dat %>%
-    filter(elkyear == indiv & model == 'train')
-  rss_indiv_gfr <- rss_dat %>%
-    filter(elkyear == indiv & model == 'gfr')
-  rss_indiv_ranef <- rss_dat %>%
-    filter(elkyear == indiv & model == 'ranef')
-  
-  beta_diff <- rss_indiv_test$rss - rss_indiv_train$rss
-  
-  z_gfr <- rss_indiv_test$rss - mean(rss_indiv_gfr$rss) / sd(rss_indiv_gfr$rss)
-  z_ranef <- rss_indiv_test$rss - mean(rss_indiv_ranef$rss) / sd(rss_indiv_ranef$rss)
-  
-  zscore_row <- data.frame(elkyear = indiv,
-                         beta_diff,
-                         gfr = z_gfr,
-                         ranef = z_ranef)
-  
-  rss_zscores <- rbind(rss_zscores, zscore_row)
-  
+    
+    # Subset RSS data by model
+    rss_indiv_test <- rss_dat %>%
+      filter(elkyear == indiv & model == 'test')
+    rss_indiv_train <- rss_dat %>%
+      filter(elkyear == indiv & model == 'train')
+    rss_indiv_gfr <- rss_dat %>%
+      filter(elkyear == indiv & model == 'gfr')
+    rss_indiv_ranef <- rss_dat %>%
+      filter(elkyear == indiv & model == 'ranef')
+    # Subset home range cover data by training or testing
+    hr_indiv_test <- hr_covs %>%
+      filter(elkyear == indiv & block == rss_indiv_test$block)
+    hr_indiv_train <- hr_covs %>%
+      filter(elkyear == indiv & block == rss_indiv_test$block + 1)
+    
+    # Get HR cover for opposite covariate to covariate being summarized
+    hr_diff <- ifelse(rss_indiv_test$cond %in% c('x1-mw1-rd0.95_x2-mw0-rd0.95'),
+                      hr_indiv_test$roaddist_hr - hr_indiv_train$roaddist_hr,
+                      hr_indiv_test$mixedwood_hr - hr_indiv_train$mixedwood_hr)
+    
+    # Calculate difference in individual selection
+    beta_diff <- rss_indiv_test$rss - rss_indiv_train$rss
+    # Calculate z-scores for each model
+    z_gfr <- rss_indiv_test$rss - mean(rss_indiv_gfr$rss) / sd(rss_indiv_gfr$rss)
+    z_ranef <- rss_indiv_test$rss - mean(rss_indiv_ranef$rss) / sd(rss_indiv_ranef$rss)
+    
+    # Create row for individual z-score
+    zscore_row <- data.frame(elkyear = indiv,
+                             beta_diff,
+                             hr_diff,
+                             gfr = z_gfr,
+                             ranef = z_ranef)
+    # Create row for individual variance
+    var_row <- data.frame(elkyear = indiv, 
+                          model = c('gfr', 'ranef'), 
+                          var = c(var(rss_indiv_gfr$rss), var(rss_indiv_ranef$rss)),
+                          cond = habitat)
+    # Bind together
+    rss_vars <- rbind(rss_vars, var_row)
+    rss_zscores <- rbind(rss_zscores, zscore_row)
+    
   }
+  
+  # Pivot models into column
+  rss_row <- rss_zscores %>%
+    pivot_longer(cols = c(gfr, ranef), 
+                 values_to = 'zscore',
+                 names_to = 'model') %>%
+    mutate(cond = habitat)
+  
+  # Bind together
+  rss_summ <- rbind(rss_summ, rss_row)
+  var_summ <- rbind(var_summ, rss_vars)
+  
+}
 
-rss_summ <- rss_zscores %>%
-  pivot_longer(cols = c(gfr, ranef), 
-               values_to = 'zscore',
-               names_to = 'model')
+# Join RSS scores with variance
+rss_summ <- rss_summ %>%
+  left_join(var_summ, by = c('elkyear', 'model', 'cond'))
 
-# tiff("figures/rss_dens.tiff", width = 12, height = 10, units = 'in', res = 300)
-ggplot() +
-  geom_density(data = rss_gfr, aes(x = rss),
-               colour = '#ffad60', fill = '#ffad6030') +
-  geom_density(data = rss_ranef, aes(x = rss),
-               colour = '#4a4a88', fill = '#4a4a8830') +
-  geom_vline(data = rss_test, aes(xintercept = rss)) +
-  facet_wrap(~ elkyear) +
-  theme(panel.background = element_rect(fill = 'white', colour = 'black'),
-        plot.margin = unit(c(0.5, 0.5, 1, 1), 'cm'),
-        panel.grid = element_blank(),
-        axis.text = element_text(size = 15, colour = '#000000'),
-        axis.title.y = element_text(size = 18, colour = '#000000', vjust = 4),
-        axis.title.x = element_text(size = 18, colour = '#000000', vjust = -4),
-        strip.background = element_blank(),
-        strip.text = element_text(size = 15, colour = '#000000')) +
-  ylab('Density') + 
-  xlab('Relative selection strength')
-
-# tiff("figures/zsc_boxplot.tiff", width = 6, height = 6, units = 'in', res = 300)
-ggplot() +
-  geom_boxplot(data = rss_summ,
-               aes(x = model, y = abs(zscore),
-                   colour = model, fill = model), notch = T, width = 0.3) +
-  scale_fill_manual(values = c('#ffad6030', '#4a4a8830')) +
-  scale_colour_manual(values = c('#ffad60', '#4a4a88')) +
-  theme(panel.background = element_rect(fill = 'white', colour = 'black'),
-        plot.margin = unit(c(0.5, 0.5, 1, 1), 'cm'),
-        panel.grid = element_blank(),
-        axis.text = element_text(size = 15, colour = '#000000'),
-        axis.title.y = element_text(size = 18, colour = '#000000', vjust = 4),
-        axis.title.x = element_blank(),
-        legend.position = 'none') +
-  ylab('Absolute value of z-score')
-  
-# tiff("figures/zsc_by_sel.tiff", width = 8, height = 6, units = 'in', res = 300)
-ggplot(data = rss_summ,
-       aes(x = beta_diff, y = zscore, group = model, colour = model)) +
-  scale_color_manual(values = c('#ffad60', '#4a4a88')) +
-  geom_hline(yintercept = 0, linetype = 'dashed', colour = '#00000030') +
-  geom_vline(xintercept = 0, linetype = 'dashed', colour = '#00000030') +
-  geom_point() +
-  geom_smooth(method = 'lm', se = F) +
-  theme(panel.background = element_rect(fill = 'white', colour = 'black'),
-        plot.margin = unit(c(0.5, 0.5, 1, 1), 'cm'),
-        panel.grid = element_blank(),
-        axis.text = element_text(size = 15, colour = '#000000'),
-        axis.title.y = element_text(size = 18, colour = '#000000', vjust = 4),
-        axis.title.x = element_text(size = 18, colour = '#000000', vjust = -4),
-        legend.position = 'none',
-        strip.background = element_blank(),
-        strip.text = element_text(size = 15, colour = '#000000')) +
-  ylab('Population model z-score') + 
-  xlab('Individual selection difference') +
-  facet_wrap(~ model)
-  
-  
-  
+# Save
+saveRDS(rss_summ, 'output/rss_summary.rds')
 
