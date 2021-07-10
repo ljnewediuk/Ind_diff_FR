@@ -3,6 +3,10 @@ library(tidyverse)
 library(lme4)
 library(glmmTMB)
 
+# Toggle between predictive RSS and current RSS comparison
+# period <- 'predict'
+period <- 'current'
+
 # Load models
 rsf_dat <- readRDS('output/rsf_data.rds') %>%
   # Create column for unscaled home range cover
@@ -26,6 +30,9 @@ hr_covs <- rsf_dat %>%
             unsc_roaddist_hr_km = mean(unsc_roaddist_hr_km),
             unsc_mixedwood_hr = mean(unsc_mixedwood_hr))
 
+# Save home range habitat covers (optional)
+# saveRDS(hr_covs, 'output/hr_covers.rds')
+
 # Create data frame for RSS comparison conditions
 rss_conditions <- data.frame(cond = c('x1-mw1-rd0.95_x2-mw0-rd0.95',
                                       'x1-mw1-rd0.50_x2-mw0-rd0.50',
@@ -38,16 +45,17 @@ rss_conditions <- data.frame(cond = c('x1-mw1-rd0.95_x2-mw0-rd0.95',
                              mixedwood_x2 = c(0, 0, 0, 1, 1, 0, 0),
                              roaddist_x1 = c(u_rd, m_rd, l_rd, u_rd, 
                                              l_rd, u_rd, l_rd),
-                             roaddist_x2 = c(u_rd, m_rd, l_rd, rep(m_rd, 4)))
+                             roaddist_x2 = c(u_rd, m_rd, l_rd, m_rd, 
+                                             m_rd, l_rd, m_rd))
 
 # Loop through population models to collect RSS for each individual (30 x 200)
 
 # Load results in progress if started
-if(file.exists('output/temp/rss_results.rds')) {
-  rss_results <- readRDS('output/temp/rss_results.rds')
+if(file.exists('output/temp/rss_results_temp.rds')) {
+  rss_results <- readRDS('output/temp/rss_results_temp.rds')
 }
 
-# Start loop
+# Start looping through conditions
 for(comp in 1: nrow(rss_conditions)) {
   
   # Get conditions for comparison
@@ -57,19 +65,10 @@ for(comp in 1: nrow(rss_conditions)) {
   mixedwood_x1 <- rss_conditions[comp ,]$mixedwood_x1
   mixedwood_x2 <- rss_conditions[comp ,]$mixedwood_x2
   
-  # Initiate df for comparison column or load existing results
-  # if(file.exists('output/temp/rss_results_temp.rds')) {
-  #   rss_col <- readRDS('output/temp/rss_results_temp.rds')
-  # } else {
-  #   rss_col <- data.frame()
-  # }
-  # 
-  # 
-  # Start loop
+  # Start looping through model outputs
   for(i in list.files('output/population_models/')) {
     
     print(i)
-    
     # Get elkyear
     sub_ey <- str_split(i, '_')[[1]][1]
     sub_ey <- as.numeric(str_extract(sub_ey, '[[:digit:]]+'))
@@ -77,25 +76,31 @@ for(comp in 1: nrow(rss_conditions)) {
     sub_block <- str_split(i, '_')[[1]][2]
     sub_block <- as.numeric(str_extract(sub_block, '[[:digit:]]+'))
     
-    # Subset appropriate row from HR covs to testing data
+    # Subset appropriate row from HR covs to testing or training data
+    # Set initially to training data
     sub_hr <- hr_covs %>%
       ungroup %>%
       filter(elkyear == sub_ey) %>%
-      filter(block == sub_block + 1)
+      filter(block == sub_block)
+    # Change to testing data if predicting
+    if(period == 'predict') {
+      sub_hr <- hr_covs %>%
+        ungroup %>%
+        filter(elkyear == sub_ey) %>%
+        filter(block == sub_block + 1)
+    }
     
-    # Individual testing and training RSS
-    # Set x1 and x2 locations
+    # Set x1 and x2 locations for individual testing and training RSS
     x1 <- data.frame(mixedwood = mixedwood_x1,
                      roaddist = roaddist_x1)
     x2 <- data.frame(mixedwood = mixedwood_x2,
                      roaddist = roaddist_x2)
     
-    # Loop through model types
+    # Loop through testing and training models
     for(mod in c('train', 'test')) {
       
       # Set appropriate block (testing or training)
       rss_block <- ifelse(mod == 'train', sub_block, sub_block + 1)
-      
       # Get appropriate model
       sub_mod <- readRDS(paste0('output/individual_models/', mod, '_ey', 
                                 sub_ey, '_block', rss_block, '.rds'))
@@ -115,8 +120,7 @@ for(comp in 1: nrow(rss_conditions)) {
       
     }
     
-    # Predict individual testing RSS using population model
-    # Set x1 and x2 locations
+    # Set x1 and x2 locations for population level RSS
     x1_pop <- data.frame(mixedwood = mixedwood_x1,
                          roaddist = roaddist_x1,
                          roaddist_hr = sub_hr$roaddist_hr,
@@ -131,27 +135,15 @@ for(comp in 1: nrow(rss_conditions)) {
     if(exists('rss_results')) 
       if(nrow(plyr::match_df(rss_results, data.frame(cond, 
                                                      elkyear = sub_ey))) > 1) next
-    
     # Loop through each model type
     for(mod in c('gfr', 'ranef')) {
       
       print(mod)
-      
       # Initiate data frame for results
       pop_logRSS <- data.frame()
       
       for(its in 1:200) {
         
-        # If the comparison condition has been done for iteration, move on
-        # # Comparison column
-        # if(exists('rss_col')) if(nrow(plyr::match_df(rss_col, 
-        #                   data.frame(cond, model = mod,  elkyear = sub_ey, 
-        #                              iteration = its))) == 1) next
-        # Full results
-        # if(exists('rss_results')) if(nrow(plyr::match_df(rss_results, 
-        #                   data.frame(cond, model = mod,  elkyear = sub_ey, 
-        #                              iteration = its))) == 1) next
-          
         # Get appropriate model
         pop_mod <- readRDS(paste0('output/population_models/', i, '/', 
                                   mod, '_it', its, '.rds'))
@@ -193,16 +185,9 @@ for(comp in 1: nrow(rss_conditions)) {
     
   }
   
-  # # Bind comparison column to results
-  # if(exists('rss_results')) {
-  #   rss_results <- cbind(rss_results, rss_col)
-  # } else {
-  #   rss_results <- rss_col
-  # }
-  
-  
 }
 
 # Save
-saveRDS(rss_results, 'output/rss_results.rds')
+saveRDS(rss_results, paste0('output/rss_results_', period, '.rds'))
+
 
