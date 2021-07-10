@@ -35,7 +35,9 @@ for(habitat in c('Road', 'Mixed_forest')) {
                             rsq_beta_diff = paste0('R^2', '==', rsq_beta_diff), 
                             rsq_hr_diff = paste0('R^2', '==', rsq_hr_diff),
                             y_hr = max(abs(rss_summ[rss_summ$cond == habitat ,]$zscore)),
-                            y_beta = max((rss_summ[rss_summ$cond == habitat ,]$zscore)))
+                            y_beta = max((rss_summ[rss_summ$cond == habitat ,]$zscore)),
+                            x_hr = mean(abs(rss_summ[rss_summ$cond == habitat ,]$hr_diff)),
+                            x_beta = mean(rss_summ[rss_summ$cond == habitat ,]$beta_diff))
     
     stats_summ <- rbind(stats_summ, stats_row)
     
@@ -45,15 +47,13 @@ for(habitat in c('Road', 'Mixed_forest')) {
 
 # Plot boxplots for each covariate
 # tiff("figures/zsc_boxplot.tiff", width = 8, height = 6, units = 'in', res = 300)
-
-# Plot
 ggplot() +
   geom_hline(yintercept = 0, linetype = 'dashed', colour = '#00000030') +
   geom_boxplot(data = rss_summ,
                aes(x = model, y = zscore,
                    colour = model, fill = model), notch = T, width = 0.3) +
   geom_text(data = stats_summ[stats_summ$model == 'gfr' ,], 
-            aes(x = model, y = 10, label = bplot_pval)) +
+            aes(x = model, y = 10, label = bplot_pval), size = 6) +
   scale_fill_manual(values = c('#ffad6030', '#4a4a8830')) +
   scale_colour_manual(values = c('#ffad60', '#4a4a88')) +
   theme(panel.background = element_rect(fill = 'white', colour = 'black'),
@@ -78,9 +78,9 @@ ggplot(data = rss_summ,
   geom_vline(xintercept = 0, linetype = 'dashed', colour = '#00000030') +
   geom_point() +
   geom_text(data = stats_summ[stats_summ$model == 'ranef' ,], 
-            aes(x = 0, y = y_beta, label = rsq_beta_diff), parse = T) +
+            aes(x = x_beta, y = y_beta, label = rsq_beta_diff), size = 6, parse = T) +
   geom_text(data = stats_summ[stats_summ$model == 'gfr' ,], 
-            aes(x = 0, y = y_beta*.8, label = rsq_beta_diff), parse = T) +
+            aes(x = x_beta, y = y_beta*.7, label = rsq_beta_diff), size = 6, parse = T) +
   geom_smooth(method = 'lm', fullrange = T) +
   theme(panel.background = element_rect(fill = 'white', colour = 'black'),
         plot.margin = unit(c(0.5, 0.5, 1, 1), 'cm'),
@@ -95,6 +95,8 @@ ggplot(data = rss_summ,
   xlab('Individual selection difference') + 
   facet_wrap(~ cond, scales = 'free')
 
+dev.off()
+
 # tiff("figures/zsc_by_hr.tiff", width = 8, height = 6, units = 'in', res = 300)
 ggplot(data = rss_summ,
        aes(x = abs(hr_diff), y = abs(zscore), group = model, colour = model)) +
@@ -102,9 +104,9 @@ ggplot(data = rss_summ,
   geom_hline(yintercept = 0, linetype = 'dashed', colour = '#00000030') +
   geom_point() +
   geom_text(data = stats_summ[stats_summ$model == 'ranef' ,], 
-            aes(x = 0.3, y = y_hr, label = rsq_hr_diff), parse = T) +
+            aes(x = x_hr, y = y_hr, label = rsq_hr_diff), size = 6, parse = T) +
   geom_text(data = stats_summ[stats_summ$model == 'gfr' ,], 
-            aes(x = 0.3, y = y_hr*.9, label = rsq_hr_diff), parse = T) +
+            aes(x = x_hr, y = y_hr*.9, label = rsq_hr_diff), size = 6, parse = T) +
   geom_smooth(method = 'glm', 
               method.args=list(family=gaussian(link="log")),
               fullrange = T) +
