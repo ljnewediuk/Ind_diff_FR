@@ -28,22 +28,25 @@ for(habitat in c('Road', 'Mixed_forest')) {
   
   # Plot
   ggplot() +
-    geom_density(data = rss_gfr, aes(x = rss), 
-                 colour = '#ffad60', fill = '#ffad6030') +
-    geom_density(data = rss_ranef, aes(x = rss), 
+    stat_density(data = rss_ranef, aes(x = rss), 
+                 geom = 'area', position = 'identity',
                  colour = '#4a4a88', fill = '#4a4a8830') +
+    stat_density(data = rss_gfr, aes(x = rss), 
+                 geom = 'area', position = 'identity',
+                 colour = '#ffad60', fill = '#ffad6030') +
     geom_vline(data = rss_test, aes(xintercept = rss), linetype = 'dashed') +
-    facet_wrap(~ elkyear) +
+    geom_vline(data = rss_train, aes(xintercept = rss), linetype = 'solid') +
+    facet_wrap(~ elkyear, scales = 'free') +
     theme(panel.background = element_rect(fill = 'white', colour = 'black'),
           plot.margin = unit(c(0.5, 0.5, 1, 1), 'cm'),
           panel.grid = element_blank(),
-          axis.text = element_text(size = 15, colour = '#000000'),
+          axis.text = element_text(size = 12, colour = '#000000'),
           axis.title.y = element_text(size = 18, colour = '#000000', vjust = 4),
           axis.title.x = element_text(size = 18, colour = '#000000', vjust = -4),
           strip.background = element_blank(),
           strip.text = element_text(size = 15, colour = '#000000')) +
     ylab('Density') + 
-    xlab('Relative selection strength')
+    xlab('Relative selection strength') +
 
   # Save plot
   ggsave(filename = paste0(habitat, '_rss_dens.tiff'), 
