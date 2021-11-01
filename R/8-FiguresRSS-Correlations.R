@@ -4,20 +4,33 @@ library(glmmTMB)
 library(tidyverse)
 
 # Load RSS summary
-rss_summ <- readRDS('output/rss_summary.rds')
+rss_summ <- readRDS('output/rss_summary.rds') %>%
+  mutate(cond = recode(cond, 
+                       'Mixed_forest' = 'Mixed forest', 
+                       'Road' = 'Distance to road (km)'))
 
 # Summarize stats to display on plots
 stats_summ <- data.frame()
 
-for(habitat in c('Road', 'Mixed_forest')) {
-  
+for(habitat in c('Distance to road (km)', 'Mixed forest')) {
+
   # p-value of Z-scores by model (boxplots)
   bplot_pval <- round(broom::tidy(lm(zscore ~ model, 
                                data = rss_summ[rss_summ$cond == habitat ,], 
                         weights = 1/var))[2 ,]$p.value, digits = 3)
+  # Boxplot model summary
+  assign(paste('bplot', habitat, sep = '_'), lm(zscore ~ model, 
+                   data = rss_summ[rss_summ$cond == habitat ,], weights = 1/var))
   
   # R-squared of Z-scores with habitat and model
   for(model in c('gfr', 'ranef')) {
+    # Fit a weighted linear regression to test whether Z-score depends on individual
+    # variation in selection or availability between blocks
+    assign(paste(model, habitat, 'lm', sep = '_'), 
+           lm(abs(zscore) ~ abs(beta_diff) + abs(hr_diff), 
+                            data =  rss_summ[rss_summ$model == model & 
+                                               rss_summ$cond == habitat ,], 
+                            weights = 1/var))
     # R-squared Z-scores with individual selection difference
     rsq_beta_diff <- round(summary(lm(zscore ~ beta_diff, 
                                 data =  rss_summ[rss_summ$model == model & 
@@ -53,7 +66,7 @@ ggplot() +
                aes(x = model, y = zscore,
                    colour = model, fill = model), notch = T, width = 0.3) +
   geom_text(data = stats_summ[stats_summ$model == 'gfr' ,], 
-            aes(x = model, y = 10, label = bplot_pval), size = 6) +
+            aes(x = model, y = 2.8, label = bplot_pval), size = 6) +
   scale_fill_manual(values = c('#ffad6030', '#4a4a8830')) +
   scale_colour_manual(values = c('#ffad60', '#4a4a88')) +
   theme(panel.background = element_rect(fill = 'white', colour = 'black'),
@@ -66,10 +79,12 @@ ggplot() +
         axis.title.x = element_blank(),
         legend.position = 'none') +
   ylab('Z-score') + 
-  facet_wrap(~ cond, scales = 'fixed')
+  facet_wrap(~ cond, scales = 'fixed') +
+  # Set ylims to remove outliers
+  ylim(-5, 4)
 
 dev.off()
-
+  
 # tiff("figures/zsc_by_sel.tiff", width = 8, height = 6, units = 'in', res = 300)
 ggplot(data = rss_summ,
        aes(x = beta_diff, y = zscore, group = model, colour = model)) +
@@ -97,6 +112,16 @@ ggplot(data = rss_summ,
 
 dev.off()
 
+# Recode habitat names for plotting z-score by home range difference
+rss_summ <- rss_summ %>%
+  mutate(cond = recode(cond, 
+                       'Mixed forest' = 'Proportion mixed forest', 
+                       'Distance to road (km)' = 'Mean distance to road (km)'))
+stats_summ <- stats_summ %>%
+  mutate(cond = recode(cond, 
+                       'Mixed forest' = 'Proportion mixed forest', 
+                       'Distance to road (km)' = 'Mean distance to road (km)'))
+
 # tiff("figures/zsc_by_hr.tiff", width = 8, height = 6, units = 'in', res = 300)
 ggplot(data = rss_summ,
        aes(x = abs(hr_diff), y = abs(zscore), group = model, colour = model)) +
@@ -120,7 +145,7 @@ ggplot(data = rss_summ,
         strip.background = element_blank(),
         strip.text = element_text(size = 15, colour = '#000000')) +
   ylab('|Population model z-score|') + 
-  xlab('|Individual difference in HR cover|') + 
+  xlab('|Individual difference between HRs|') + 
   facet_wrap(~ cond, scales = 'free')
 
 dev.off()  
