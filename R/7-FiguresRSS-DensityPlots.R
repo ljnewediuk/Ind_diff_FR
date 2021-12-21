@@ -4,7 +4,9 @@ library(glmmTMB)
 library(tidyverse)
 
 # Load RSS results
-rss_dat <- readRDS('output/rss_results_predict.rds')
+rss_dat <- readRDS('output/rss_results_predict.rds') %>%
+  arrange(elkyear) %>%
+  mutate(elkname = paste('elk', elkyear))
 
 # Plot density distributions for each covariate
 for(habitat in c('Road', 'Mixed_forest')) {
@@ -36,8 +38,10 @@ for(habitat in c('Road', 'Mixed_forest')) {
                  colour = '#ffad60', fill = '#ffad6030') +
     geom_vline(data = rss_test, aes(xintercept = rss), linetype = 'dashed') +
     geom_vline(data = rss_train, aes(xintercept = rss), linetype = 'solid') +
-    facet_wrap(~ elkyear, scales = 'free') +
-    theme(panel.background = element_rect(fill = 'white', colour = 'black'),
+    facet_wrap(~ elkname, scales = 'free') +
+    theme(panel.background = element_rect(fill = 'white'),
+          axis.line.x = element_line(),
+          axis.line.y = element_line(),
           plot.margin = unit(c(0.5, 0.5, 1, 1), 'cm'),
           panel.grid = element_blank(),
           axis.text = element_text(size = 12, colour = '#000000'),
@@ -49,8 +53,8 @@ for(habitat in c('Road', 'Mixed_forest')) {
     xlab('Relative selection strength') +
 
   # Save plot
-  ggsave(filename = paste0(habitat, '_rss_dens.tiff'), 
-         path = 'figures/', plot = last_plot(), 
+  ggsave(filename = paste0(habitat, '_rss_dens.tiff'),
+         path = 'figures/', plot = last_plot(),
          width = 12, height = 10, device = 'tiff', units = 'in', dpi = 300)
-  
+
 }

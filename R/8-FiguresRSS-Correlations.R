@@ -6,13 +6,13 @@ library(tidyverse)
 # Load RSS summary
 rss_summ <- readRDS('output/rss_summary.rds') %>%
   mutate(cond = recode(cond, 
-                       'Mixed_forest' = 'Mixed forest', 
-                       'Road' = 'Distance to road (km)'))
+                       'Mixed_forest' = '(b) Mixed forest', 
+                       'Road' = '(a) Distance to road (km)'))
 
 # Summarize stats to display on plots
 stats_summ <- data.frame()
 
-for(habitat in c('Distance to road (km)', 'Mixed forest')) {
+for(habitat in c('(a) Distance to road (km)', '(b) Mixed forest')) {
 
   # p-value of Z-scores by model (boxplots)
   bplot_pval <- round(broom::tidy(lm(zscore ~ model, 
@@ -69,15 +69,18 @@ ggplot() +
             aes(x = model, y = 2.8, label = bplot_pval), size = 6) +
   scale_fill_manual(values = c('#ffad6030', '#4a4a8830')) +
   scale_colour_manual(values = c('#ffad60', '#4a4a88')) +
-  theme(panel.background = element_rect(fill = 'white', colour = 'black'),
+  theme(panel.background = element_rect(fill = 'white'),
         plot.margin = unit(c(0.5, 0.5, 1, 1), 'cm'),
         panel.grid = element_blank(),
         strip.background = element_blank(),
-        strip.text = element_text(size = 18, colour = '#000000'),
+        strip.text.x = element_text(size = 18, colour = '#000000', hjust = 0),
         axis.text = element_text(size = 15, colour = '#000000'),
         axis.title.y = element_text(size = 18, colour = '#000000', vjust = 4),
         axis.title.x = element_blank(),
+        axis.line.y = element_line(),
+        axis.line.x = element_line(),
         legend.position = 'none') +
+  annotate("segment", x=0, xend=0, y=-Inf, yend=Inf, colour ='#000000', size = 1) +
   ylab('Z-score') + 
   facet_wrap(~ cond, scales = 'fixed') +
   # Set ylims to remove outliers
@@ -97,15 +100,17 @@ ggplot(data = rss_summ,
   geom_text(data = stats_summ[stats_summ$model == 'gfr' ,], 
             aes(x = x_beta, y = y_beta*.7, label = rsq_beta_diff), size = 6, parse = T) +
   geom_smooth(method = 'lm', fullrange = T) +
-  theme(panel.background = element_rect(fill = 'white', colour = 'black'),
+  theme(panel.background = element_rect(fill = 'white'),
         plot.margin = unit(c(0.5, 0.5, 1, 1), 'cm'),
         panel.grid = element_blank(),
         axis.text = element_text(size = 15, colour = '#000000'),
         axis.title.y = element_text(size = 18, colour = '#000000', vjust = 4),
         axis.title.x = element_text(size = 18, colour = '#000000', vjust = -4),
+        axis.line.y = element_line(),
+        axis.line.x = element_line(),
         legend.position = 'none',
         strip.background = element_blank(),
-        strip.text = element_text(size = 15, colour = '#000000')) +
+        strip.text.x = element_text(size = 15, colour = '#000000', hjust = 0)) +
   ylab('Population model z-score') + 
   xlab('Individual selection difference') + 
   facet_wrap(~ cond, scales = 'free')
@@ -135,15 +140,17 @@ ggplot(data = rss_summ,
   geom_smooth(method = 'glm', 
               method.args=list(family=gaussian(link="log")),
               fullrange = T) +
-  theme(panel.background = element_rect(fill = 'white', colour = 'black'),
+  theme(panel.background = element_rect(fill = 'white'),
         plot.margin = unit(c(0.5, 0.5, 1, 1), 'cm'),
         panel.grid = element_blank(),
         axis.text = element_text(size = 15, colour = '#000000'),
         axis.title.y = element_text(size = 18, colour = '#000000', vjust = 4),
         axis.title.x = element_text(size = 18, colour = '#000000', vjust = -4),
+        axis.line.y = element_line(),
+        axis.line.x = element_line(),
         legend.position = 'none',
         strip.background = element_blank(),
-        strip.text = element_text(size = 15, colour = '#000000')) +
+        strip.text.x = element_text(size = 15, colour = '#000000', hjust = 0)) +
   ylab('|Population model z-score|') + 
   xlab('|Individual difference between HRs|') + 
   facet_wrap(~ cond, scales = 'free')

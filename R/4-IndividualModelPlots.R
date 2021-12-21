@@ -95,15 +95,19 @@ mw_rd_plot <- ggplot() +
               aes(x = roaddist_km_hr, y = mixedwood_b, 
                   colour = factor(block), group = factor(block)), 
               method = 'lm', se = F) +
-  theme(panel.background = element_rect(fill = 'white', colour = 'black'),
+  theme(panel.background = element_rect(fill = 'white'),
         plot.margin = unit(c(0.5, 3, 1, 1), 'cm'),
+        plot.title = element_text(size = 23, colour = '#000000', hjust = 0.05),
         panel.grid = element_blank(),
+        axis.line.x = element_line(),
+        axis.line.y = element_line(),
         axis.text = element_text(size = 23, colour = '#000000'),
         axis.title.y = element_text(size = 23, colour = '#000000', vjust = 4),
         axis.title.x = element_text(size = 23, colour = '#000000', vjust = -4),
         legend.position = 'none') +
   ylab('ß coefficient mixedwood forest') + 
-  xlab('Mean distance to road in home range')
+  xlab('Mean distance to road in home range') +
+  ggtitle('(b)')
 
 # Plot ß road distance by mean HR mixedwood proportion
 rd_mw_plot <- ggplot() +
@@ -126,18 +130,22 @@ rd_mw_plot <- ggplot() +
               aes(x = mixedwood_hr, y = roaddist_b, 
                   colour = factor(block), group = factor(block)), 
               method = 'lm', se = F) +
-  theme(panel.background = element_rect(fill = 'white', colour = 'black'),
+  theme(panel.background = element_rect(fill = 'white'),
         plot.margin = unit(c(0.5, 3, 1, 1), 'cm'),
+        plot.title = element_text(size = 23, colour = '#000000', hjust = 0.05),
         panel.grid = element_blank(),
+        axis.line.x = element_line(),
+        axis.line.y = element_line(),
         axis.text = element_text(size = 23, colour = '#000000'),
         axis.title.y = element_text(size = 23, colour = '#000000', vjust = 4),
         axis.title.x = element_text(size = 23, colour = '#000000', vjust = -4),
         legend.position = 'none') +
   ylab('ß coefficient distance to road') + 
-  xlab('Proportional cover mixedwood forest in home range')
+  xlab('Proportional cover mixedwood forest in home range') +
+  ggtitle('(a)')
 
 # Plot panel figure
-tiff('figures/individual_FRs.tiff', width = 15, height = 8, units = 'in', res = 300)
+# tiff('figures/individual_FRs.tiff', width = 15, height = 8, units = 'in', res = 300)
 cowplot::plot_grid(rd_mw_plot, mw_rd_plot, ncol = 2, nrow = 1)
 
 dev.off()
